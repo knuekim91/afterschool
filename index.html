@@ -148,6 +148,16 @@
   .drow .no { flex:0 0 34px; font-size:12px; color:var(--sub); text-align:right; }
   .drow input { flex:1; min-width:0; visibility:hidden; padding:5px 9px; }
   .drow.on input { visibility:visible; }
+  .pal { display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin:8px 0; }
+  .pal button { border-radius:16px; padding:4px 12px; }
+  .pal button.on { background:var(--main); color:#fff; border-color:var(--main); }
+  .att { font-size:13px; }
+  .att th, .att td { text-align:center; padding:3px 2px; border:1px solid var(--line); white-space:nowrap; }
+  .att th.d { cursor:pointer; } .att th.d:hover { background:var(--soft); }
+  .att td.nm { text-align:left; padding:3px 8px; position:sticky; left:0; background:#fff; }
+  .att td button { border:0; background:transparent; min-width:34px; height:26px; padding:0 3px; border-radius:6px; font-size:13px; }
+  .att td button:hover { background:var(--soft); }
+  .att td button.m-o { color:var(--ok); font-weight:700; } .att td button.m-x { color:var(--bad); font-weight:700; }
   .chips { display:flex; flex-wrap:wrap; gap:4px; max-height:170px; overflow:auto; padding:6px;
            border:1px solid var(--line); border-radius:9px; }
   .chip { font-size:12px; padding:2px 7px; border-radius:6px; }
@@ -155,7 +165,7 @@
   .chip:not(.on) { text-decoration:line-through; color:var(--sub); }
   #modal { position:fixed; inset:0; background:rgba(42,33,64,.5); display:flex; align-items:flex-start;
            justify-content:center; padding:4vh 12px; overflow:auto; z-index:10; }
-  #modal .box { background:#fff; border-radius:18px; padding:20px; width:100%; max-width:760px; }
+  #modal .box { background:#fff; border-radius:18px; padding:20px; width:100%; max-width:980px; }
   #toast { position:fixed; left:50%; bottom:24px; transform:translateX(-50%); background:#2a2140; color:#fff;
            padding:10px 18px; border-radius:10px; z-index:20; max-width:90vw; }
   #toast.err { background:var(--bad); }
@@ -214,11 +224,14 @@ const BRAND = '경북여상 방과후학교';
 // 첫 로그인 때 비밀번호 변경을 강제할지 여부: 관리자가 [일정·설정]에서 켜고 끕니다(서버 저장).
 // 서버에 설정이 아직 없을 때(구조 업데이트 전)만 config.js 의 FORCE_PW_CHANGE 값을 따릅니다.
 const forcePw = () => (S && typeof S.force_pw === 'boolean' ? S.force_pw : cfg.FORCE_PW_CHANGE !== false);
+let ATT = new Map();   // 출석 표시: '강좌|학생|날짜|교시' → 표시
+const attKey = (c, s, d, slot) => `${c}|${s}|${d}|${slot}`;
+const MARKS = ['◯', '/', '과제', '병원', '학원', '수강포기'];
 let S = null;          // 서버 상태
 let R = null;          // 교사용 명단
 let tab = 'my';
 let loginRole = 'student';
-let view = { cls: '', listFilter: '', detailId: null, addCls: '' };
+let view = { cls: '', listFilter: '', detailId: null, addCls: '', mark: '◯' };
 
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) =>
@@ -270,6 +283,7 @@ async function refresh() {
   S.type_dates = S.type_dates || [];
   S.courses.forEach((c) => { c.days = c.days || typeOf(c.type_code).days || []; c.period = c.period || ''; c.contents = c.contents || {}; });   // 이전 구조와도 호환
   R = S.me.role === 'teacher' && S.term ? await api('as_get_roster', { p_term: termId }) : null;
+  ATT = new Map(((R && R.attendance) || []).map((x) => [attKey(x[0], x[1], x[2], x[3]), x[4]]));
   document.title = S.term ? S.term.title : BRAND;
   render();
 }
@@ -575,23 +589,53 @@ function detailView(c) {
     ${ros.map((s) => `<tr><td>${hakbun(s)}</td><td>${esc(s.name)}</td><td>${s.assigned ? '교사 지정' : '학생 신청'}</td>
       <td class="right">${mine ? `<button class="small danger" data-a="unassign" data-id="${c.id}" data-s="${s.id}">제외</button>` : ''}</td></tr>`).join('')
       || '<tr><td colspan="4">수강생이 없습니다.</td></tr>'}</tbody></table></div>
+    <h3>출석 체크</h3>${attGrid(c, mine)}
     ${mine && c.status !== 'cancelled' ? `<h3>학생 지정${t.assign_only ? '' : ' (필요한 경우에만)'}</h3>
       <div style="max-width:220px"><select data-c="addCls">${classOptions(view.addCls, '학급 선택')}</select></div>
       <div class="mt">${cand.map((s) => `<button class="small" style="margin:2px" data-a="assign" data-id="${c.id}" data-s="${s.id}" ${inSet.has(s.id) ? 'disabled' : ''}>${s.number}. ${esc(s.name)}${inSet.has(s.id) ? ' ✓' : ''}</button>`).join('')
         || (view.addCls ? '<span class="sub">수강 대상 학년의 학생이 없습니다.</span>' : '<span class="sub">학급을 고르면 학생 이름이 나옵니다. 이름을 누르면 수강생으로 지정됩니다.</span>')}</div>` : ''}`;
 }
 function attendanceHtml(c) {
-  const t = typeOf(c.type_code), ros = rosterOf(c.id), PER = 20;
+  const t = typeOf(c.type_code), ros = rosterOf(c.id), PER = 20, ns = slotsOf(c);
+  const all = c.dates.flatMap((d) => Array.from({ length: ns }, (_, i) => [d, i + 1]));
   const chunks = [];
-  for (let i = 0; i < Math.max(c.dates.length, 1); i += PER) chunks.push(c.dates.slice(i, i + PER));
+  for (let i = 0; i < Math.max(all.length, 1); i += PER) chunks.push(all.slice(i, i + PER));
   return chunks.map((ds, i) => {
     const cols = ds.length ? ds : Array(PER).fill(null);
     return `<section class="sheet"><h2>${esc(c.title)} 출석부</h2>
       <p>${esc(S.term.title)} · ${esc(t.name)}(${daysText(c)}${c.period ? ' ' + esc(c.period) : ''}) · 담당 ${esc(c.teacher_name)} · ${esc(c.room)} · ${periodText()} · ${i + 1}/${chunks.length}쪽</p>
-      <table><thead><tr><th>연번</th><th>학번</th><th>이름</th>${cols.map((d) => `<th>${d ? md(d) + '<br>' + dow(d) : '&nbsp;'}</th>`).join('')}</tr></thead>
-      <tbody>${ros.map((s, k) => `<tr><td>${k + 1}</td><td>${hakbun(s)}</td><td class="nm">${esc(s.name)}</td>${cols.map(() => '<td class="cell"></td>').join('')}</tr>`).join('')}
+      <table><thead><tr><th>연번</th><th>학번</th><th>이름</th>${cols.map((x) => `<th>${x ? md(x[0]) + '<br>' + dow(x[0]) + (ns > 1 ? x[1] : '') : '&nbsp;'}</th>`).join('')}</tr></thead>
+      <tbody>${ros.map((s, k) => `<tr><td>${k + 1}</td><td>${hakbun(s)}</td><td class="nm">${esc(s.name)}</td>${cols.map((x) => `<td class="cell">${x ? esc(ATT.get(attKey(c.id, s.id, x[0], x[1])) || '') : ''}</td>`).join('')}</tr>`).join('')}
       ${[1, 2].map(() => `<tr><td>&nbsp;</td><td></td><td></td>${cols.map(() => '<td class="cell"></td>').join('')}</tr>`).join('')}</tbody></table></section>`;
   }).join('');
+}
+
+/* 출석 체크 */
+const slotsOf = (c) => Math.max(1, Math.round(c.hours ?? hoursOf(c.period)));
+const markCls = (m) => (m === '◯' ? 'm-o' : m === '/' ? 'm-x' : '');
+function attGrid(c, editable) {
+  const ros = rosterOf(c.id), ns = slotsOf(c);
+  if (!c.dates.length) return '<p class="sub">강의 날짜가 없습니다. 강좌 [수정]에서 날짜를 먼저 넣어 주세요.</p>';
+  if (!ros.length) return '<p class="sub">수강생이 없습니다.</p>';
+  const cols = c.dates.flatMap((d) => Array.from({ length: ns }, (_, i) => [d, i + 1]));
+  return `${editable ? `<div class="pal"><span class="sub">표시 고르기:</span>${MARKS.map((m) => `<button type="button" data-a="pal" data-v="${m}" class="${view.mark === m ? 'on' : ''}">${m}</button>`).join('')}
+      <button type="button" data-a="pal" data-v="" class="${view.mark === '' ? 'on' : ''}">지우기</button>
+      <button type="button" data-a="palCustom">직접 입력…</button>
+      <span class="sub">칸을 누르면 고른 표시가 들어갑니다. 날짜(맨 윗줄)를 누르면 그날 빈칸이 모두 채워집니다.</span></div>` : ''}
+    <div class="scroll" style="max-height:420px"><table class="att"><thead>
+      <tr><th rowspan="${ns > 1 ? 2 : 1}">학번</th><th rowspan="${ns > 1 ? 2 : 1}">이름</th>${c.dates.map((d) => `<th class="${editable ? 'd' : ''}" colspan="${ns}" ${editable ? `data-a="attCol" data-id="${c.id}" data-d="${d}" title="이 날 빈칸 모두 채우기"` : ''}>${md(d)}<br>${dow(d)}</th>`).join('')}</tr>
+      ${ns > 1 ? `<tr>${cols.map(([, i]) => `<th>${i}</th>`).join('')}</tr>` : ''}</thead>
+      <tbody>${ros.map((s) => `<tr><td>${hakbun(s)}</td><td class="nm">${esc(s.name)}</td>${cols.map(([d, i]) => { const m = ATT.get(attKey(c.id, s.id, d, i)) || '';
+        return `<td>${editable ? `<button type="button" class="${markCls(m)}" data-a="att" data-id="${c.id}" data-s="${s.id}" data-d="${d}" data-i="${i}">${esc(m)}</button>` : esc(m)}</td>`; }).join('')}</tr>`).join('')}</tbody></table></div>`;
+}
+async function saveAtt(courseId, items) {       // 화면을 먼저 바꾸고 저장, 실패하면 되돌림
+  const before = items.map((it) => [attKey(courseId, it.s, it.d, it.slot), ATT.get(attKey(courseId, it.s, it.d, it.slot))]);
+  items.forEach((it) => { const k = attKey(courseId, it.s, it.d, it.slot); it.m ? ATT.set(k, it.m) : ATT.delete(k); });
+  const paint = () => items.forEach((it) => { const b = document.querySelector(`[data-a=att][data-s="${it.s}"][data-d="${it.d}"][data-i="${it.slot}"]`);
+    if (b) { const m = ATT.get(attKey(courseId, it.s, it.d, it.slot)) || ''; b.textContent = m; b.className = markCls(m); } });
+  paint();
+  try { await api('as_set_attendance', { p_course: courseId, p_items: items }); }
+  catch (e) { before.forEach(([k, v]) => (v === undefined ? ATT.delete(k) : ATT.set(k, v))); paint(); toast(e.message, true); }
 }
 
 /* 강의계획서(프로그램별 세부 운영 계획서) 인쇄 */
@@ -736,7 +780,7 @@ const A = {
   enter: () => { intro = false; render(); },
   year: (el) => { yearSel = +el.dataset.v; try { sessionStorage.setItem('as_year', yearSel); } catch (e) {} render(); },
   intro: () => { intro = true; render(); },
-  term: (el) => run(async () => { try { history.pushState({ term: +el.dataset.id }, ''); } catch (e) {} setTerm(+el.dataset.id); tab = 'my'; view = { cls: '', listFilter: '', detailId: null, addCls: '' }; await refresh(); window.scrollTo(0, 0); }),
+  term: (el) => run(async () => { try { history.pushState({ term: +el.dataset.id }, ''); } catch (e) {} setTerm(+el.dataset.id); tab = 'my'; view = { cls: '', listFilter: '', detailId: null, addCls: '', mark: '◯' }; await refresh(); window.scrollTo(0, 0); }),
   terms: () => run(async () => { if (!S || !S.term) return; setTerm(null); closeModal(); await refresh(); window.scrollTo(0, 0); }),
   termDel: () => { if (confirm(`'${S.term.title}'을(를) 삭제할까요?\n강좌가 하나도 없을 때만 삭제됩니다.`)) run(async () => { await api('as_delete_term', { p_id: termId }); setTerm(null); await refresh(); }, '삭제되었습니다.'); },
   logout: async () => { try { await api('as_logout'); } catch (e) {} setToken(null); setTerm(null); S = R = null; intro = false; closeModal(); render(); },
@@ -762,6 +806,13 @@ const A = {
   chipNone: () => { document.querySelectorAll('#dateChips .chip').forEach((b) => b.classList.remove('on')); countDates(); },
   courseDel: (el) => { if (confirm('이 강좌를 삭제할까요?')) run(async () => { await api('as_delete_course', { p_course: +el.dataset.id }); await refresh(); }, '삭제되었습니다.'); },
   chip: (el) => { el.classList.toggle('on'); if (el.parentElement.classList.contains('drow')) el.parentElement.classList.toggle('on', el.classList.contains('on')); countDates(); },
+  pal: (el) => { view.mark = el.dataset.v; document.querySelectorAll('.pal [data-a=pal]').forEach((b) => b.classList.toggle('on', b.dataset.v === view.mark)); },
+  palCustom: () => { const m = prompt('출석부에 넣을 표시를 적어 주세요 (예: 조퇴, 체험학습)', ''); if (m && m.trim()) { view.mark = m.trim().slice(0, 20); document.querySelectorAll('.pal [data-a=pal]').forEach((b) => b.classList.remove('on')); toast(`'${view.mark}' 표시를 골랐습니다. 칸을 눌러 넣으세요.`); } },
+  att: (el) => { const k = attKey(+el.dataset.id, +el.dataset.s, el.dataset.d, +el.dataset.i); const cur = ATT.get(k) || '';
+    saveAtt(+el.dataset.id, [{ s: +el.dataset.s, d: el.dataset.d, slot: +el.dataset.i, m: cur === view.mark ? '' : view.mark }]); },
+  attCol: (el) => { const c = courseById(+el.dataset.id), d = el.dataset.d; if (!view.mark) return toast('먼저 넣을 표시를 골라 주세요.', true);
+    const items = []; rosterOf(c.id).forEach((s) => { for (let i = 1; i <= slotsOf(c); i++) if (!ATT.get(attKey(c.id, s.id, d, i))) items.push({ s: s.id, d, slot: i, m: view.mark }); });
+    if (items.length) saveAtt(c.id, items); },
   printPlan: (el) => doPrint(planHtml(courseById(+el.dataset.id))),
   printPlans: () => { const cs = S.courses.filter((c) => c.status !== 'cancelled'); if (!cs.length) return toast('인쇄할 강좌가 없습니다.', true); doPrint(cs.map(planHtml).join('')); },
   datesReset: () => fillDates(null, $('#modal [name=type_code]').value, null, null, true),
