@@ -189,6 +189,9 @@
     .sheet th, .sheet td { border:1px solid #333; padding:3pt 2pt; text-align:center; background:#fff; color:#000; }
     .sheet td.nm { white-space:nowrap; }
     .sheet td.cell { min-width:16pt; height:17pt; }
+    .sheet.att table { table-layout:fixed; width:100%; }
+    .sheet.att th, .sheet.att td { overflow:hidden; word-break:keep-all; overflow-wrap:anywhere; line-height:1.15; }
+    .sheet.att td.cell { font-size:8pt; padding:2pt 1pt; }
     @page plan { size:A4 portrait; margin:14mm; }
     .sheet.plan { page:plan; }
     .sheet.plan h2 { font-size:17pt; border:2px solid #333; padding:8pt; margin-bottom:12pt; }
@@ -601,10 +604,11 @@ function attendanceHtml(c) {
   const chunks = [];
   for (let i = 0; i < Math.max(all.length, 1); i += PER) chunks.push(all.slice(i, i + PER));
   return chunks.map((ds, i) => {
-    const cols = ds.length ? ds : Array(PER).fill(null);
-    return `<section class="sheet"><h2>${esc(c.title)} 출석부</h2>
+    const cols = ds.concat(Array(PER - ds.length).fill(null));      // 수업일이 적어도 항상 20칸 → 칸 너비 일정
+    return `<section class="sheet att"><h2>${esc(c.title)} 출석부</h2>
       <p>${esc(S.term.title)} · ${esc(t.name)}(${daysText(c)}${c.period ? ' ' + esc(c.period) : ''}) · 담당 ${esc(c.teacher_name)} · ${esc(c.room)} · ${periodText()} · ${i + 1}/${chunks.length}쪽</p>
-      <table><thead><tr><th>연번</th><th>학번</th><th>이름</th>${cols.map((x) => `<th>${x ? md(x[0]) + '<br>' + dow(x[0]) + (ns > 1 ? x[1] : '') : '&nbsp;'}</th>`).join('')}</tr></thead>
+      <table><colgroup><col style="width:4.5%"><col style="width:7.5%"><col style="width:12%">${cols.map(() => `<col style="width:${76 / PER}%">`).join('')}</colgroup>
+        <thead><tr><th>연번</th><th>학번</th><th>이름</th>${cols.map((x) => `<th>${x ? md(x[0]) + '<br>' + dow(x[0]) + (ns > 1 ? x[1] : '') : '&nbsp;'}</th>`).join('')}</tr></thead>
       <tbody>${ros.map((s, k) => `<tr><td>${k + 1}</td><td>${hakbun(s)}</td><td class="nm">${esc(s.name)}</td>${cols.map((x) => `<td class="cell">${x ? esc(ATT.get(attKey(c.id, s.id, x[0], x[1])) || '') : ''}</td>`).join('')}</tr>`).join('')}
       ${[1, 2].map(() => `<tr><td>&nbsp;</td><td></td><td></td>${cols.map(() => '<td class="cell"></td>').join('')}</tr>`).join('')}</tbody></table></section>`;
   }).join('');
