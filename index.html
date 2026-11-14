@@ -170,6 +170,7 @@
   .att .c1 { left:0; width:64px; min-width:64px; font-variant-numeric:tabular-nums; color:var(--main-d); font-weight:700; }
   .att .c2 { left:64px; width:86px; min-width:86px; text-align:left; padding-left:8px; font-weight:600; box-shadow:3px 0 5px -3px rgba(76,51,153,.25); }
   .att thead .c1, .att thead .c2 { z-index:3; background:#f3eefc; text-align:center; padding-left:3px; }
+  .att td.rowfill { cursor:pointer; } .att td.rowfill:hover { color:var(--main); text-decoration:underline; }
   .att tbody tr:hover td { background:#fbf9ff; } .att tbody tr:hover .c1, .att tbody tr:hover .c2 { background:var(--soft); }
   .att td button, .att td .ro { display:inline-block; min-width:42px; height:27px; line-height:25px; padding:0 4px; border:1px solid var(--line); border-radius:8px;
       background:#fff; font-size:12px; color:var(--ink); }
@@ -642,11 +643,11 @@ function attGrid(c, editable) {
   return `${editable ? `<div class="pal"><span class="sub">표시 고르기:</span>${MARKS.map((m) => `<button type="button" data-a="pal" data-v="${m}" class="${view.mark === m ? 'on' : ''}">${m}</button>`).join('')}
       <button type="button" data-a="pal" data-v="" class="${view.mark === '' ? 'on' : ''}">지우기</button>
       <button type="button" data-a="palCustom">직접 입력…</button>
-      <span class="sub">칸을 누르면 고른 표시가 들어갑니다. 날짜(맨 윗줄)를 누르면 그날 빈칸이 모두 채워집니다.</span></div>` : ''}
+      <span class="sub">칸을 누르면 고른 표시가 들어갑니다. <b>날짜</b>를 누르면 그날의 빈칸이, <b>학생 이름</b>을 누르면 그 학생의 빈칸이 모두 채워집니다(예: 수강포기).</span></div>` : ''}
     <div class="attwrap"><table class="att"><thead>
       <tr><th class="c1" rowspan="${ns > 1 ? 2 : 1}">학번</th><th class="c2" rowspan="${ns > 1 ? 2 : 1}">이름</th>${c.dates.map((d) => `<th class="${editable ? 'd' : ''}" colspan="${ns}" ${editable ? `data-a="attCol" data-id="${c.id}" data-d="${d}" title="이 날 빈칸 모두 채우기"` : ''}>${md(d)}<br>${dow(d)}</th>`).join('')}</tr>
       ${ns > 1 ? `<tr class="r2">${cols.map(([, i]) => `<th>${i}</th>`).join('')}</tr>` : ''}</thead>
-      <tbody>${ros.map((s) => `<tr><td class="c1">${hakbun(s)}</td><td class="c2">${esc(s.name)}</td>${cols.map(([d, i]) => { const m = ATT.get(attKey(c.id, s.id, d, i)) || '';
+      <tbody>${ros.map((s) => `<tr><td class="c1">${hakbun(s)}</td><td class="c2${editable ? ' rowfill' : ''}" ${editable ? `data-a="attRow" data-id="${c.id}" data-s="${s.id}" title="이 학생의 빈칸을 고른 표시로 모두 채우기"` : ''}>${esc(s.name)}</td>${cols.map(([d, i]) => { const m = ATT.get(attKey(c.id, s.id, d, i)) || '';
         return `<td>${editable ? `<button type="button" class="${markCls(m)}" data-a="att" data-id="${c.id}" data-s="${s.id}" data-d="${d}" data-i="${i}">${esc(m)}</button>` : `<span class="ro ${markCls(m)}">${esc(m)}</span>`}</td>`; }).join('')}</tr>`).join('')}</tbody></table></div>`;
 }
 async function saveAtt(courseId, items) {       // 화면을 먼저 바꾸고 저장, 실패하면 되돌림
@@ -831,6 +832,15 @@ const A = {
   palCustom: () => { const m = prompt('출석부에 넣을 표시를 적어 주세요 (예: 조퇴, 체험학습)', ''); if (m && m.trim()) { view.mark = m.trim().slice(0, 20); document.querySelectorAll('.pal [data-a=pal]').forEach((b) => b.classList.remove('on')); toast(`'${view.mark}' 표시를 골랐습니다. 칸을 눌러 넣으세요.`); } },
   att: (el) => { const k = attKey(+el.dataset.id, +el.dataset.s, el.dataset.d, +el.dataset.i); const cur = ATT.get(k) || '';
     saveAtt(+el.dataset.id, [{ s: +el.dataset.s, d: el.dataset.d, slot: +el.dataset.i, m: cur === view.mark ? '' : view.mark }]); },
+  attRow: (el) => {            // 학생 이름을 누르면 그 학생 줄의 빈칸을 고른 표시로 채움 ('지우기'를 골랐으면 줄 전체 지움)
+    const c = courseById(+el.dataset.id), sid = +el.dataset.s, items = [];
+    const cells = c.dates.flatMap((d) => Array.from({ length: slotsOf(c) }, (_, i) => [d, i + 1]));
+    if (view.mark === '') {
+      if (!confirm('이 학생의 출석 표시를 모두 지울까요?')) return;
+      cells.forEach(([d, i]) => { if (ATT.get(attKey(c.id, sid, d, i))) items.push({ s: sid, d, slot: i, m: '' }); });
+    } else cells.forEach(([d, i]) => { if (!ATT.get(attKey(c.id, sid, d, i))) items.push({ s: sid, d, slot: i, m: view.mark }); });
+    if (items.length) saveAtt(c.id, items); else toast(view.mark === '' ? '지울 표시가 없습니다.' : '채울 빈칸이 없습니다.');
+  },
   attCol: (el) => { const c = courseById(+el.dataset.id), d = el.dataset.d; if (!view.mark) return toast('먼저 넣을 표시를 골라 주세요.', true);
     const items = []; rosterOf(c.id).forEach((s) => { for (let i = 1; i <= slotsOf(c); i++) if (!ATT.get(attKey(c.id, s.id, d, i))) items.push({ s: s.id, d, slot: i, m: view.mark }); });
     if (items.length) saveAtt(c.id, items); },
