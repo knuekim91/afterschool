@@ -180,8 +180,9 @@ let termId = null;     // 선택한 방과후학교(운영 단위)
 try { termId = +sessionStorage.getItem('as_term') || null; } catch (e) {}
 let intro = !token;    // 첫 화면(인사말) 표시 여부
 const BRAND = '경북여상 방과후학교';
-// 첫 로그인 때 비밀번호 변경을 강제할지 여부. config.js 에서 FORCE_PW_CHANGE: false 로 끌 수 있습니다(기본: 켜짐).
-const FORCE_PW = cfg.FORCE_PW_CHANGE !== false;
+// 첫 로그인 때 비밀번호 변경을 강제할지 여부: 관리자가 [일정·설정]에서 켜고 끕니다(서버 저장).
+// 서버에 설정이 아직 없을 때(구조 업데이트 전)만 config.js 의 FORCE_PW_CHANGE 값을 따릅니다.
+const forcePw = () => (S && typeof S.force_pw === 'boolean' ? S.force_pw : cfg.FORCE_PW_CHANGE !== false);
 let S = null;          // 서버 상태
 let R = null;          // 교사용 명단
 let tab = 'my';
@@ -263,7 +264,7 @@ function render() {
   const app = $('#app');
   if (!sb) { app.innerHTML = setupView(); return; }
   if (!token || !S) { app.innerHTML = intro ? introView() : loginView(); return; }
-  if (S.me.must_change && FORCE_PW) { app.innerHTML = headerView() + `<main><div class="card" style="max-width:420px;margin:6vh auto">${pwForm(true)}</div></main>`; return; }
+  if (S.me.must_change && forcePw()) { app.innerHTML = headerView() + `<main><div class="card" style="max-width:420px;margin:6vh auto">${pwForm(true)}</div></main>`; return; }
   if (!S.term) { app.innerHTML = headerView() + `<main>${termsView()}</main>`; return; }
   app.innerHTML = headerView() + `<main>${S.me.role === 'student' ? studentView() : teacherView()}</main>`;
   if (view.detailId && courseById(view.detailId)) openModal(detailView(courseById(view.detailId)));
@@ -278,10 +279,10 @@ function headerView() {
   const who = me.role === 'student'
     ? `${me.grade}학년 ${me.class}반 ${me.number}번 ${esc(me.name)}`
     : `${esc(me.name)} 선생님${me.is_admin ? ' (관리자)' : ''}`;
-  return `<header class="top"><h1 class="disp">${BRAND}${S.term && !(me.must_change && FORCE_PW) ? `<small>${esc(S.term.title)}</small>` : ''}</h1>
+  return `<header class="top"><h1 class="disp">${BRAND}${S.term && !(me.must_change && forcePw()) ? `<small>${esc(S.term.title)}</small>` : ''}</h1>
     <div class="who"><span>${who}</span>
-      ${S.term && !(me.must_change && FORCE_PW) ? '<button class="small" data-a="terms">방과후학교 목록</button>' : ''}
-      ${me.must_change && FORCE_PW ? '' : '<button class="small" data-a="pwOpen">비밀번호 변경</button>'}
+      ${S.term && !(me.must_change && forcePw()) ? '<button class="small" data-a="terms">방과후학교 목록</button>' : ''}
+      ${me.must_change && forcePw() ? '' : '<button class="small" data-a="pwOpen">비밀번호 변경</button>'}
       <button class="small" data-a="logout">로그아웃</button></div></header>`;
 }
 const ORBS = '<i class="orb o1"></i><i class="orb o2"></i><i class="orb o3"></i><i class="orb o4"></i>';
@@ -312,7 +313,7 @@ function loginView() {
           <div><label>번호</label><input name="number" type="number" min="1" required></div></div>` : ''}
       <label>이름</label><input name="name" required autocomplete="off">
       <label>비밀번호</label><input name="pw" type="password" required>
-      <p class="sub">처음 로그인할 때 비밀번호는 <b>2026</b> 입니다.${FORCE_PW ? ' 로그인 후 바로 변경하게 됩니다.' : ''}</p>
+      <p class="sub">처음 로그인할 때 비밀번호는 <b>2026</b> 입니다.</p>
       <button class="pri">로그인</button>
     </form>
     <button class="back" data-a="intro">← 첫 화면으로</button></div></div>`;
@@ -622,6 +623,11 @@ function settingsView() {
       <button class="pri">저장</button>
       <button type="button" class="danger" data-a="termDel" style="float:right">이 방과후학교 삭제</button>
     </form>
+    <h3>계정 설정 (모든 방과후학교 공통)</h3>
+    ${typeof S.force_pw === 'boolean' ? `<p><label style="display:inline;color:inherit;font-size:15px"><input type="checkbox" data-force ${S.force_pw ? 'checked' : ''}> 첫 로그인 때 비밀번호 변경 강제</label></p>
+      <p class="sub">켜면: 초기 비밀번호(2026)를 쓰는 학생·선생님은 로그인하자마자 새 비밀번호를 정해야 합니다. 끄면: 2026 그대로 바로 들어옵니다(시험·점검용).
+        지금 상태: <b>${S.force_pw ? '켜짐' : '꺼짐'}</b></p>`
+      : '<p class="sub">이 설정을 쓰려면 Supabase 에서 최신 update_all.sql 을 한 번 실행해 주세요.</p>'}
     <h3>강좌 유형</h3>
     <p class="sub">유형별 <b>수업 날짜</b>를 등록해 두면, 선생님이 강좌를 개설할 때 그 날짜가 강의 날짜로 자동 입력됩니다(강좌의 수업 요일에 해당하는 날짜만).</p>
     <div class="scroll"><table><thead><tr><th>유형</th><th>기본 요일</th><th>기본 교시</th><th>신청 방식</th><th>수업 날짜</th><th></th></tr></thead><tbody>
@@ -764,6 +770,10 @@ document.addEventListener('keydown', (e) => {
   if ((e.key === 'Enter' || e.key === ' ') && e.target.dataset && e.target.dataset.a === 'enter') A.enter();
 });
 document.addEventListener('change', (e) => {
+  if (e.target.dataset && 'force' in e.target.dataset) {
+    const on = e.target.checked;
+    return run(async () => { await api('as_set_force_pw', { p_on: on }); await refresh(); }, on ? '비밀번호 변경 강제를 켰습니다.' : '비밀번호 변경 강제를 껐습니다.');
+  }
   if (e.target.dataset && e.target.dataset.hr) {
     const [g, c] = e.target.value ? e.target.value.split('-').map(Number) : [null, null];
     return run(async () => { await api('as_set_homeroom', { p_id: +e.target.dataset.hr, p_grade: g, p_class: c }); await refresh(); }, '담임 학급을 저장했습니다.');
