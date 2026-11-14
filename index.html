@@ -108,6 +108,10 @@
             border-bottom:1px solid var(--line); }
   .course:last-child { border-bottom:0; }
   .course .t { font-weight:600; }
+  .crumb { display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:14px; }
+  .crumb button { border-radius:20px; padding:7px 16px; font-weight:700; color:var(--main-d); border-color:var(--main); background:#fff; }
+  .crumb button:hover { background:var(--main); color:#fff; }
+  .crumb span { font-size:19px; color:var(--main-d); }
   .hero { background:var(--grad); color:#fff; border-radius:18px; padding:22px 22px; margin-bottom:16px;
           box-shadow:0 8px 24px rgba(76,51,153,.22); }
   .hero h2 { font-size:24px; margin:0 0 4px; } .hero p { margin:0; opacity:.92; }
@@ -266,7 +270,7 @@ function render() {
   if (!token || !S) { app.innerHTML = intro ? introView() : loginView(); return; }
   if (S.me.must_change && forcePw()) { app.innerHTML = headerView() + `<main><div class="card" style="max-width:420px;margin:6vh auto">${pwForm(true)}</div></main>`; return; }
   if (!S.term) { app.innerHTML = headerView() + `<main>${termsView()}</main>`; return; }
-  app.innerHTML = headerView() + `<main>${S.me.role === 'student' ? studentView() : teacherView()}</main>`;
+  app.innerHTML = headerView() + `<main><div class="crumb"><button data-a="terms">← 방과후학교 목록으로</button><span class="disp">${esc(S.term.title)}</span></div>${S.me.role === 'student' ? studentView() : teacherView()}</main>`;
   if (view.detailId && courseById(view.detailId)) openModal(detailView(courseById(view.detailId)));
 }
 function setupView() {
@@ -279,7 +283,7 @@ function headerView() {
   const who = me.role === 'student'
     ? `${me.grade}학년 ${me.class}반 ${me.number}번 ${esc(me.name)}`
     : `${esc(me.name)} 선생님${me.is_admin ? ' (관리자)' : ''}`;
-  return `<header class="top"><h1 class="disp">${BRAND}${S.term && !(me.must_change && forcePw()) ? `<small>${esc(S.term.title)}</small>` : ''}</h1>
+  return `<header class="top"><h1 class="disp" data-a="terms" title="방과후학교 목록으로" style="cursor:pointer">${BRAND}${S.term && !(me.must_change && forcePw()) ? `<small>${esc(S.term.title)}</small>` : ''}</h1>
     <div class="who"><span>${who}</span>
       ${S.term && !(me.must_change && forcePw()) ? '<button class="small" data-a="terms">방과후학교 목록</button>' : ''}
       ${me.must_change && forcePw() ? '' : '<button class="small" data-a="pwOpen">비밀번호 변경</button>'}
@@ -646,8 +650,8 @@ const A = {
   close: () => closeModal(),
   enter: () => { intro = false; render(); },
   intro: () => { intro = true; render(); },
-  term: (el) => run(async () => { setTerm(+el.dataset.id); tab = 'my'; view = { cls: '', listFilter: '', detailId: null, addCls: '' }; await refresh(); window.scrollTo(0, 0); }),
-  terms: () => run(async () => { setTerm(null); closeModal(); await refresh(); }),
+  term: (el) => run(async () => { try { history.pushState({ term: +el.dataset.id }, ''); } catch (e) {} setTerm(+el.dataset.id); tab = 'my'; view = { cls: '', listFilter: '', detailId: null, addCls: '' }; await refresh(); window.scrollTo(0, 0); }),
+  terms: () => run(async () => { if (!S || !S.term) return; setTerm(null); closeModal(); await refresh(); window.scrollTo(0, 0); }),
   termDel: () => { if (confirm(`'${S.term.title}'을(를) 삭제할까요?\n강좌가 하나도 없을 때만 삭제됩니다.`)) run(async () => { await api('as_delete_term', { p_id: termId }); setTerm(null); await refresh(); }, '삭제되었습니다.'); },
   logout: async () => { try { await api('as_logout'); } catch (e) {} setToken(null); setTerm(null); S = R = null; intro = false; closeModal(); render(); },
   pwOpen: () => openModal(pwForm(false)),
@@ -766,6 +770,7 @@ document.addEventListener('submit', (e) => {
   e.preventDefault();
   F[f.dataset.f](new FormData(f));
 });
+window.addEventListener('popstate', () => { if (token && S && S.term) A.terms(); });   // 뒤로 가기 → 목록
 document.addEventListener('keydown', (e) => {
   if ((e.key === 'Enter' || e.key === ' ') && e.target.dataset && e.target.dataset.a === 'enter') A.enter();
 });
