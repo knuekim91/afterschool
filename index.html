@@ -129,6 +129,12 @@
   .week td b { display:block; color:var(--main-d); font-size:14px; line-height:1.3; }
   .week td span { display:block; font-size:12px; color:var(--sub); }
   .week td .none { color:#bdb6cf; }
+  .dlist { max-height:340px; overflow:auto; padding:6px 8px; border:1px solid var(--line); border-radius:9px; }
+  .drow { display:flex; gap:8px; align-items:center; padding:3px 0; }
+  .drow .chip { flex:0 0 86px; text-align:center; padding:5px 4px; font-size:13px; }
+  .drow .no { flex:0 0 34px; font-size:12px; color:var(--sub); text-align:right; }
+  .drow input { flex:1; min-width:0; visibility:hidden; padding:5px 9px; }
+  .drow.on input { visibility:visible; }
   .chips { display:flex; flex-wrap:wrap; gap:4px; max-height:170px; overflow:auto; padding:6px;
            border:1px solid var(--line); border-radius:9px; }
   .chip { font-size:12px; padding:2px 7px; border-radius:6px; }
@@ -160,6 +166,14 @@
     .sheet th, .sheet td { border:1px solid #333; padding:3pt 2pt; text-align:center; background:#fff; color:#000; }
     .sheet td.nm { white-space:nowrap; }
     .sheet td.cell { min-width:16pt; height:17pt; }
+    @page plan { size:A4 portrait; margin:14mm; }
+    .sheet.plan { page:plan; }
+    .sheet.plan h2 { font-size:17pt; border:2px solid #333; padding:8pt; margin-bottom:12pt; }
+    .sheet.plan table { font-size:10.5pt; margin-bottom:-1px; }
+    .sheet.plan th, .sheet.plan td { padding:5pt 6pt; }
+    .sheet.plan th { background:#f1f1f1; white-space:nowrap; font-weight:700; }
+    .sheet.plan td.l { text-align:left; white-space:pre-line; }
+    .sheet.plan td.c { height:20pt; }
   }
 </style>
 </head>
@@ -241,7 +255,7 @@ async function refresh() {
   S = await api('as_get_state', { p_term: termId });
   if (termId && !S.term) setTerm(null);
   S.type_dates = S.type_dates || [];
-  S.courses.forEach((c) => { c.days = c.days || typeOf(c.type_code).days || []; c.period = c.period || ''; });   // 이전 구조와도 호환
+  S.courses.forEach((c) => { c.days = c.days || typeOf(c.type_code).days || []; c.period = c.period || ''; c.contents = c.contents || {}; });   // 이전 구조와도 호환
   R = S.me.role === 'teacher' && S.term ? await api('as_get_roster', { p_term: termId }) : null;
   document.title = S.term ? S.term.title : BRAND;
   render();
@@ -426,8 +440,9 @@ function myCoursesView() {
       <div style="flex:0 0 auto"><button class="pri" data-a="courseNew" ${canEdit ? '' : 'disabled'}>+ 강좌 개설</button></div></div>
     <p class="sub">운영 기간: ${periodText()}${canEdit ? '' : ' · 지금은 강좌 개설·수정 기간이 아닙니다.'}</p>
     ${cs.length ? cs.map((c) => `<div class="course"><div><div class="t">${esc(c.title)} ${statusTag(c)}</div>
-        <div class="sub">${courseMeta(c)} · 수업 ${c.dates.length}회</div></div>
-      <div class="nowrap"><button class="small" data-a="detail" data-id="${c.id}">명단·출석부</button>
+        <div class="sub">${courseMeta(c)} · 수업 ${c.dates.length}회 · 계획서 ${planDone(c)}/${c.dates.length} 입력</div></div>
+      <div class="nowrap"><button class="small" data-a="printPlan" data-id="${c.id}">계획서 인쇄</button>
+        <button class="small" data-a="detail" data-id="${c.id}">명단·출석부</button>
         <button class="small" data-a="courseEdit" data-id="${c.id}" ${canEdit ? '' : 'disabled'}>수정</button>
         <button class="small danger" data-a="courseDel" data-id="${c.id}">삭제</button></div></div>`).join('')
       : '<p>개설한 강좌가 없습니다. [+ 강좌 개설]을 눌러 강좌를 만들어 보세요.</p>'}</div>`;
@@ -440,6 +455,7 @@ function allCoursesView() {
       <td>${esc(c.title)}</td><td class="nowrap">${esc(c.teacher_name)}</td><td>${esc(c.room)}</td>
       <td class="nowrap">${c.grades.join(',')}</td>
       <td class="nowrap">${capText(c)}${low ? ' <span class="tag warn">인원 미달</span>' : ''}</td>
+      <td class="nowrap">${c.dates.length && planDone(c) === c.dates.length ? '<span class="tag ok">완료</span>' : `<span class="tag ${planDone(c) ? 'warn' : ''}">${planDone(c)}/${c.dates.length}</span>`}</td>
       <td>${statusTag(c)}</td>
       <td class="nowrap"><button class="small" data-a="detail" data-id="${c.id}">명단</button>
         ${adm ? `<button class="small" data-a="courseEdit" data-id="${c.id}">수정</button>
@@ -450,9 +466,9 @@ function allCoursesView() {
   return `<div class="card"><h2>전체 강좌 현황</h2>
     <p class="sub">강좌 ${S.courses.length}개 · 수강 ${total}건 · 폐강 검토 기준 ${min}명 미만(주황색 표시)
       ${adm ? ' · 정원 조정은 [수정]에서 합니다.' : ''}</p>
-    <div class="scroll"><table><thead><tr><th>유형</th><th>강좌명</th><th>교사</th><th>강의실</th><th>학년</th><th>인원</th><th>상태</th><th></th></tr></thead>
-    <tbody>${rows || '<tr><td colspan="8">개설된 강좌가 없습니다.</td></tr>'}</tbody></table></div>
-    <div class="mt"><button data-a="csvCourses">강좌 현황 CSV 내려받기</button></div></div>`;
+    <div class="scroll"><table><thead><tr><th>유형</th><th>강좌명</th><th>교사</th><th>강의실</th><th>학년</th><th>인원</th><th>계획서</th><th>상태</th><th></th></tr></thead>
+    <tbody>${rows || '<tr><td colspan="9">개설된 강좌가 없습니다.</td></tr>'}</tbody></table></div>
+    <div class="mt"><button data-a="csvCourses">강좌 현황 CSV 내려받기</button> <button data-a="printPlans">강의계획서 전체 인쇄</button></div></div>`;
 }
 function classList() {
   const set = new Map();
@@ -522,7 +538,7 @@ function detailView(c) {
   return `<div class="row" style="justify-content:space-between"><h2>${esc(c.title)} ${statusTag(c)}</h2>
       <div style="flex:0 0 auto"><button data-a="close">닫기</button></div></div>
     <p class="sub">${courseMeta(c)} · 수업 ${c.dates.length}회</p>
-    <div><button data-a="printAtt" data-id="${c.id}">출석부 인쇄</button> <button data-a="csvRoster" data-id="${c.id}">명단 CSV</button></div>
+    <div><button data-a="printPlan" data-id="${c.id}">강의계획서 인쇄</button> <button data-a="printAtt" data-id="${c.id}">출석부 인쇄</button> <button data-a="csvRoster" data-id="${c.id}">명단 CSV</button></div>
     <h3>수강생 (${ros.length}명)</h3>
     <div class="scroll"><table><thead><tr><th>학번</th><th>이름</th><th>구분</th><th></th></tr></thead><tbody>
     ${ros.map((s) => `<tr><td>${hakbun(s)}</td><td>${esc(s.name)}</td><td>${s.assigned ? '교사 지정' : '학생 신청'}</td>
@@ -547,6 +563,28 @@ function attendanceHtml(c) {
   }).join('');
 }
 
+/* 강의계획서(프로그램별 세부 운영 계획서) 인쇄 */
+const planDone = (c) => c.dates.filter((d) => c.contents[d]).length;
+function planHtml(c) {
+  const t = typeOf(c.type_code), h = c.hours ?? hoursOf(c.period), n = c.dates.length;
+  const year = (S.term.start_date || c.dates[0] || String(new Date().getFullYear())).slice(0, 4);
+  const span = n ? `${c.dates[0].replace(/-/g, '.')} ~ ${c.dates[n - 1].replace(/-/g, '.')}` : periodText();
+  const rows = n ? c.dates.map((d, i) => `<tr><td class="c">${i + 1}</td><td class="c" style="white-space:nowrap">${md(d)}(${dow(d)})</td><td class="l">${esc(c.contents[d] || '')}</td></tr>`).join('')
+                 : '<tr><td class="c" colspan="3">등록된 강의 날짜가 없습니다.</td></tr>';
+  return `<section class="sheet plan"><h2>${year} 방과후학교 프로그램별 세부 운영 계획서</h2>
+    <table><colgroup><col style="width:15%"><col style="width:30%"><col style="width:13%"><col style="width:8%"><col style="width:12%"><col style="width:22%"></colgroup><tbody>
+      <tr><th rowspan="2">프로그램명</th><td rowspan="2">${esc(c.title)}<br><span style="font-size:9pt">(${esc(t.name)})</span></td><th>수업 장소</th><td colspan="3">${esc(c.room)}</td></tr>
+      <tr><th>지도 교사</th><td colspan="3">${esc(c.teacher_name)}</td></tr>
+      <tr><th>대상</th><td>${esc(c.target || c.grades.join(',') + '학년')}</td><th>수준</th><td>${esc(c.level)}</td><th>교재명</th><td>${esc(c.textbook)}</td></tr>
+      <tr><th>수업 목표</th><td class="l" colspan="5">${esc(c.goals)}</td></tr>
+      <tr><th>운영 계획</th><td class="l" colspan="5">• 회당(${h}시간), 총 ${n}회차, 총 ${Math.round(n * h * 10) / 10}시간
+• 운영 시기 : ${span}
+• 매주 ${daysText(c)}${c.period ? ' · ' + esc(c.period) : ''}
+• ${esc(S.term.title)}</td></tr></tbody></table>
+    <table><colgroup><col style="width:8%"><col style="width:14%"><col></colgroup>
+      <thead><tr><th>회</th><th>날짜</th><th>수업 목표 및 수업 내용</th></tr></thead><tbody>${rows}</tbody></table></section>`;
+}
+
 /* 강좌 개설·수정 폼 */
 function courseForm(c) {
   const isNew = !c;
@@ -565,26 +603,43 @@ function courseForm(c) {
         <div><label>교시·시간</label><input name="period" value="${esc(c.period || '')}" placeholder="예: 8·9교시 (16:40~18:30)"></div></div>
       <label>수강 학년</label>
       <div>${[1, 2, 3].map((g) => `<label style="display:inline-block;margin-right:14px;color:inherit;font-size:15px"><input type="checkbox" name="grades" value="${g}" ${c.grades.includes(g) ? 'checked' : ''}> ${g}학년</label>`).join('')}</div>
-      <label>강의 날짜 <span id="dateCount"></span> — 수업이 없는 날(공휴일·시험 등)은 눌러서 빼 주세요.</label>
-      <div class="chips" id="dateChips"></div>
+      <h3>강의계획서</h3>
+      <div class="row"><div style="flex:2 1 200px"><label>대상</label><input name="target" value="${esc(c.target || '')}" placeholder="예: 2학년 희망학생"></div>
+        <div><label>수준</label><select name="level">${['', '상', '중', '하'].map((v) => `<option ${v === (c.level || '') ? 'selected' : ''}>${v}</option>`).join('')}</select></div>
+        <div><label>회당 수업 시간</label><input name="hours" type="number" min="0.5" step="0.5" value="${c.hours ?? hoursOf(c.period)}"></div></div>
+      <label>교재명</label><input name="textbook" value="${esc(c.textbook || '')}" style="width:100%">
+      <label>수업 목표</label><textarea name="goals" style="min-height:64px;font-family:inherit;font-size:15px" placeholder="1. …&#10;2. …">${esc(c.goals || '')}</textarea>
+      <label>강의 날짜와 수업 내용 <span id="dateCount"></span> — 날짜를 누르면 수업일에서 빼거나 다시 넣을 수 있고, 수업일에는 오른쪽에 수업 내용을 적습니다.</label>
+      <div class="dlist" id="dateChips"></div>
       <div class="mt"><button type="button" class="small" data-a="datesReset">운영 기간·요일로 날짜 다시 채우기</button></div>
       <div class="right mt"><button type="button" data-a="close">취소</button> <button class="pri">저장</button></div>
     </form>`;
 }
+// 교시 안내에서 회당 시간을 어림: '8·9교시' → 2, '8교시' → 1
+const hoursOf = (period) => { const m = /^([\d·,~\s]+)교시/.exec(period || ''); return m ? (m[1].match(/\d+/g) || []).length || 2 : 2; };
+const readContents = () => { const o = {}; document.querySelectorAll('#dateChips [data-content]').forEach((i) => { if (i.value.trim()) o[i.dataset.content] = i.value.trim(); }); return o; };
 const formDays = () => [...document.querySelectorAll('#modal [name=days]:checked')].map((x) => +x.value);
-function fillDates(dates, typeCode, days) {
+function fillDates(dates, typeCode, days, contents, reset) {
+  // 이미 눌러서 뺀 날짜는 요일을 바꿔도 빠진 채로 둡니다([다시 채우기]를 누르면 모두 되살림)
+  const off = new Set(reset ? [] : [...document.querySelectorAll('#dateChips .drow:not(.on) .chip')].map((b) => b.dataset.d));
   days = days || formDays();
+  const txt = Object.assign({}, contents || {}, readContents());      // 적어 둔 수업 내용은 유지
   // 유형별 수업 날짜가 등록되어 있으면 그 날짜(선택한 요일만), 없으면 운영 기간·요일로 계산
   const td = typeDatesOf(typeCode);
   const all = td.length ? td.filter((d) => days.includes(toDate(d).getDay())) : genDates(S.term.start_date, S.term.end_date, days);
-  const on = new Set(dates || all);
+  const on = new Set((dates || all).filter((d) => !off.has(d)));
   const list = [...new Set([...all, ...on])].sort();
   $('#dateChips').innerHTML = list.length
-    ? list.map((d) => `<button type="button" class="chip ${on.has(d) ? 'on' : ''}" data-a="chip" data-d="${d}">${md(d)}(${dow(d)})</button>`).join('')
+    ? list.map((d) => `<div class="drow ${on.has(d) ? 'on' : ''}"><button type="button" class="chip ${on.has(d) ? 'on' : ''}" data-a="chip" data-d="${d}">${md(d)}(${dow(d)})</button>
+        <span class="no"></span><input data-content="${d}" value="${esc(txt[d] || '')}" placeholder="수업 내용" maxlength="200"></div>`).join('')
     : '<span class="sub">표시할 날짜가 없습니다. 수업 요일을 골랐는지 확인해 주세요. 운영 기간이나 유형별 수업 날짜는 관리자가 [일정·설정]에서 입력합니다.</span>';
   countDates();
 }
-function countDates() { $('#dateCount').textContent = `(${document.querySelectorAll('#dateChips .chip.on').length}일)`; }
+function countDates() {
+  $('#dateCount').textContent = `(${document.querySelectorAll('#dateChips .chip.on').length}일)`;
+  let n = 0;                                                            // 회차 번호 다시 매기기
+  document.querySelectorAll('#dateChips .drow').forEach((r) => { r.querySelector('.no').textContent = r.classList.contains('on') ? `${++n}회` : ''; });
+}
 
 /* ---------------------------------------------------------------- 관리자 */
 function peopleView() {
@@ -657,7 +712,7 @@ const A = {
   enroll: (el) => run(async () => { await api('as_enroll', { p_course: +el.dataset.id }); await refresh(); }, '신청되었습니다.'),
   cancel: (el) => { if (confirm('신청을 취소할까요?')) run(async () => { await api('as_cancel_enroll', { p_course: +el.dataset.id }); await refresh(); }, '취소되었습니다.'); },
   courseNew: () => { openModal(courseForm(null)); fillDates(null, $('#modal [name=type_code]').value); },
-  courseEdit: (el) => { const c = courseById(+el.dataset.id); openModal(courseForm(c)); fillDates(c.dates.length ? c.dates : null, c.type_code, c.days); },
+  courseEdit: (el) => { const c = courseById(+el.dataset.id); openModal(courseForm(c)); fillDates(c.dates.length ? c.dates : null, c.type_code, c.days, c.contents); },
   typeDates: (el) => {
     const t = typeOf(el.dataset.v), cur = new Set(typeDatesOf(t.code));
     const all = [...new Set([...genDates(S.term.start_date, S.term.end_date, [1, 2, 3, 4, 5]), ...cur])].sort();
@@ -674,8 +729,10 @@ const A = {
   chipDays: () => { const ds = $('#modal form').dataset.days.split(',').map(Number); document.querySelectorAll('#dateChips .chip').forEach((b) => b.classList.toggle('on', ds.includes(toDate(b.dataset.d).getDay()))); countDates(); },
   chipNone: () => { document.querySelectorAll('#dateChips .chip').forEach((b) => b.classList.remove('on')); countDates(); },
   courseDel: (el) => { if (confirm('이 강좌를 삭제할까요?')) run(async () => { await api('as_delete_course', { p_course: +el.dataset.id }); await refresh(); }, '삭제되었습니다.'); },
-  chip: (el) => { el.classList.toggle('on'); countDates(); },
-  datesReset: () => fillDates(null, $('#modal [name=type_code]').value),
+  chip: (el) => { el.classList.toggle('on'); if (el.parentElement.classList.contains('drow')) el.parentElement.classList.toggle('on', el.classList.contains('on')); countDates(); },
+  printPlan: (el) => doPrint(planHtml(courseById(+el.dataset.id))),
+  printPlans: () => { const cs = S.courses.filter((c) => c.status !== 'cancelled'); if (!cs.length) return toast('인쇄할 강좌가 없습니다.', true); doPrint(cs.map(planHtml).join('')); },
+  datesReset: () => fillDates(null, $('#modal [name=type_code]').value, null, null, true),
   detail: (el) => { view.detailId = +el.dataset.id; view.addCls = ''; openModal(detailView(courseById(view.detailId))); },
   assign: (el) => run(async () => { await api('as_assign', { p_course: +el.dataset.id, p_student: +el.dataset.s }); await refresh(); }, '지정되었습니다.'),
   unassign: (el) => { if (confirm('이 학생을 수강생에서 제외할까요?')) run(async () => { await api('as_unassign', { p_course: +el.dataset.id, p_student: +el.dataset.s }); await refresh(); }, '제외되었습니다.'); },
@@ -718,7 +775,11 @@ const F = {
   },
   course: (fd) => run(async () => {
     const dates = [...document.querySelectorAll('#dateChips .chip.on')].map((b) => b.dataset.d);
+    const all = readContents(), contents = {};
+    dates.forEach((d) => { if (all[d]) contents[d] = all[d]; });
     await api('as_save_course', { p_course: {
+      target: fd.get('target') || '', level: fd.get('level') || '', textbook: fd.get('textbook') || '', goals: fd.get('goals') || '',
+      hours: fd.get('hours') || null, contents,
       id: fd.get('id') || null, term_id: termId, type_code: fd.get('type_code'), title: fd.get('title'), room: fd.get('room') || '',
       capacity: fd.get('capacity') || null, teacher_id: fd.get('teacher_id') || null,
       grades: fd.getAll('grades').map(Number), days: fd.getAll('days').map(Number), period: fd.get('period') || '', dates } });
