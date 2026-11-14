@@ -3,74 +3,138 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>방과후학교</title>
+<title>경북여상 방과후학교</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Jua&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
 <style>
-  :root { --ink:#1c2733; --sub:#5d6b7a; --line:#d9dfe6; --bg:#f4f6f8; --card:#fff;
-          --main:#1d5c8f; --main-d:#164a73; --ok:#1f7a4d; --warn:#b3541e; --bad:#b3261e; --soft:#e8f0f7; }
+  :root { --ink:#2a2140; --sub:#6f6787; --line:#e4def0; --bg:#f7f4fb; --card:#fff;
+          --main:#6a4bc4; --main-d:#4c3399; --pink:#ff6f91; --peach:#ffb199;
+          --ok:#1f7a4d; --warn:#b3541e; --bad:#c0303f; --soft:#f0eafc;
+          --grad:linear-gradient(120deg,#5a3fc0 0%,#9a4fc7 48%,#ff6f91 100%); }
   * { box-sizing:border-box; }
   body { margin:0; font-family:"Pretendard","Noto Sans KR","Malgun Gothic",system-ui,sans-serif;
-         color:var(--ink); background:var(--bg); font-size:15px; line-height:1.5; }
-  header.top { background:var(--main); color:#fff; padding:12px 16px; display:flex; flex-wrap:wrap;
-               gap:8px; align-items:center; justify-content:space-between; }
-  header.top h1 { font-size:18px; margin:0; }
+         color:var(--ink); background:var(--bg); font-size:15px; line-height:1.55; }
+  .disp { font-family:"Jua","Pretendard","Malgun Gothic",sans-serif; font-weight:400; }
+
+  /* ---- 첫 화면 ---- */
+  .stage { min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px;
+           position:relative; overflow:hidden; color:#fff;
+           background:linear-gradient(135deg,#4a34b0 0%,#8a48c4 42%,#f0679a 78%,#ffb08a 100%);
+           background-size:180% 180%; animation:drift 16s ease-in-out infinite alternate; }
+  @keyframes drift { from { background-position:0% 30%; } to { background-position:100% 70%; } }
+  .orb { position:absolute; border-radius:50%; filter:blur(2px); opacity:.35; pointer-events:none;
+         background:radial-gradient(circle at 30% 30%,#fff,rgba(255,255,255,0) 70%); animation:float 9s ease-in-out infinite; }
+  .orb.o1 { width:340px; height:340px; left:-90px; top:-70px; }
+  .orb.o2 { width:240px; height:240px; right:-50px; top:18%; animation-delay:-3s; }
+  .orb.o3 { width:420px; height:420px; right:8%; bottom:-190px; animation-delay:-6s; opacity:.25; }
+  .orb.o4 { width:150px; height:150px; left:12%; bottom:10%; animation-delay:-4.5s; }
+  @keyframes float { 0%,100% { transform:translateY(0) scale(1); } 50% { transform:translateY(-26px) scale(1.05); } }
+  .intro { cursor:pointer; text-align:center; user-select:none; }
+  .intro .in { position:relative; z-index:1; max-width:1000px; }
+  .intro .hello { font-size:clamp(17px,2.6vw,26px); opacity:0; animation:rise .9s .2s ease-out forwards; letter-spacing:.02em; }
+  .intro .school { display:inline-block; margin-top:18px; padding:5px 16px; border:1px solid rgba(255,255,255,.6);
+           border-radius:30px; font-size:clamp(13px,1.6vw,16px); letter-spacing:.18em; opacity:0; animation:rise .9s .7s ease-out forwards; }
+  .intro h1 { margin:18px 0 10px; font-size:clamp(44px,10.5vw,128px); line-height:1.12; text-shadow:0 8px 30px rgba(40,10,80,.35); }
+  .intro h1 .w { display:inline-block; white-space:nowrap; margin:0 .12em; }
+  .intro h1 .ch { display:inline-block; opacity:0; transform:translateY(.6em) rotate(8deg) scale(.6);
+           animation:pop .75s cubic-bezier(.2,1.5,.4,1) forwards, sway 3.2s ease-in-out infinite; }
+  @keyframes pop { to { opacity:1; transform:none; } }
+  @keyframes sway { 0%,100% { translate:0 0; } 50% { translate:0 -7px; } }
+  @keyframes rise { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:none; } }
+  .intro .tag2 { font-size:clamp(15px,2.2vw,22px); opacity:0; animation:rise .9s 2.1s ease-out forwards; }
+  .intro .go { margin-top:44px; display:inline-block; padding:13px 34px; border-radius:40px; background:#fff; color:var(--main-d);
+           font-weight:700; font-size:17px; box-shadow:0 10px 30px rgba(40,10,80,.3); opacity:0;
+           animation:rise .9s 2.6s ease-out forwards, pulse 2s 3.6s ease-in-out infinite; }
+  @keyframes pulse { 0%,100% { transform:scale(1); } 50% { transform:scale(1.06); } }
+
+  /* ---- 로그인 ---- */
+  .login { position:relative; z-index:1; width:100%; max-width:420px; background:rgba(255,255,255,.96); color:var(--ink);
+           border-radius:22px; padding:30px 28px 26px; box-shadow:0 24px 60px rgba(40,10,80,.35); animation:rise .6s ease-out; }
+  .login .mark { width:58px; height:58px; border-radius:18px; background:var(--grad); color:#fff; display:flex;
+           align-items:center; justify-content:center; font-size:30px; margin:0 auto 12px; box-shadow:0 8px 18px rgba(106,75,196,.4); }
+  .login h2 { text-align:center; font-size:26px; margin:0; color:var(--main-d); }
+  .login .lead { text-align:center; color:var(--sub); margin:4px 0 18px; font-size:14px; }
+  .login input, .login select { width:100%; padding:11px 12px; border-radius:11px; }
+  .login button.pri { width:100%; padding:12px; border-radius:12px; font-size:16px; font-weight:700; margin-top:6px; }
+  .login .back { display:block; margin:14px auto 0; border:0; background:none; color:var(--sub); font-size:13px; }
+  .seg { display:flex; margin-bottom:8px; background:var(--soft); border-radius:12px; padding:4px; }
+  .seg button { flex:1; border:0; background:transparent; border-radius:9px; padding:9px; font-weight:600; color:var(--sub); }
+  .seg button.on { background:#fff; color:var(--main-d); box-shadow:0 2px 8px rgba(76,51,153,.18); }
+
+  /* ---- 공통 ---- */
+  header.top { background:var(--grad); color:#fff; padding:12px 18px; display:flex; flex-wrap:wrap;
+               gap:8px; align-items:center; justify-content:space-between; box-shadow:0 4px 16px rgba(76,51,153,.25); }
+  header.top h1 { font-size:21px; margin:0; display:flex; gap:10px; align-items:baseline; flex-wrap:wrap; }
+  header.top h1 small { font-family:"Pretendard",sans-serif; font-size:14px; font-weight:500; opacity:.92; }
   header.top .who { font-size:14px; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
-  main { max-width:1080px; margin:0 auto; padding:16px; }
-  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:16px; margin-bottom:14px; }
-  h2 { font-size:17px; margin:0 0 10px; }
+  main { max-width:1080px; margin:0 auto; padding:18px 16px 40px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:16px; padding:18px; margin-bottom:14px;
+          box-shadow:0 3px 14px rgba(76,51,153,.06); }
+  h2 { font-size:18px; margin:0 0 10px; }
   h3 { font-size:15px; margin:18px 0 8px; color:var(--main-d); }
   .sub { color:var(--sub); font-size:13px; }
   button, .btn { font:inherit; border:1px solid var(--line); background:#fff; color:var(--ink);
-           border-radius:7px; padding:6px 12px; cursor:pointer; }
+           border-radius:9px; padding:6px 12px; cursor:pointer; transition:.15s; }
   button:hover { border-color:var(--main); }
   button.pri { background:var(--main); border-color:var(--main); color:#fff; }
   button.pri:hover { background:var(--main-d); }
   button.danger { color:var(--bad); }
-  button.small { padding:3px 8px; font-size:13px; }
+  button.small { padding:3px 9px; font-size:13px; }
   button:disabled { opacity:.5; cursor:not-allowed; }
-  header.top button { background:transparent; color:#fff; border-color:rgba(255,255,255,.5); }
-  input, select, textarea { font:inherit; padding:7px 9px; border:1px solid var(--line); border-radius:7px;
+  header.top button { background:rgba(255,255,255,.16); color:#fff; border-color:rgba(255,255,255,.5); }
+  header.top button:hover { background:rgba(255,255,255,.28); border-color:#fff; }
+  input, select, textarea { font:inherit; padding:7px 9px; border:1px solid var(--line); border-radius:9px;
            background:#fff; color:var(--ink); max-width:100%; }
+  input:focus, select:focus, textarea:focus { outline:2px solid rgba(106,75,196,.35); border-color:var(--main); }
   textarea { width:100%; min-height:130px; font-family:ui-monospace,Consolas,monospace; font-size:13px; }
   label { display:block; font-size:13px; color:var(--sub); margin:10px 0 3px; }
   .row { display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; }
   .row > div { flex:1 1 120px; }
   .row input, .row select { width:100%; }
-  .tabs { display:flex; gap:4px; flex-wrap:wrap; margin-bottom:14px; }
-  .tabs button { border-radius:20px; }
+  .tabs { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:14px; }
+  .tabs button { border-radius:20px; padding:7px 16px; }
   .tabs button.on { background:var(--main); color:#fff; border-color:var(--main); }
   table { border-collapse:collapse; width:100%; }
   th, td { border-bottom:1px solid var(--line); padding:7px 8px; text-align:left; vertical-align:middle; }
-  th { font-size:13px; color:var(--sub); font-weight:600; background:#fafbfc; white-space:nowrap; }
+  th { font-size:13px; color:var(--sub); font-weight:600; background:#faf8fe; white-space:nowrap; }
   .scroll { overflow-x:auto; }
-  .tag { display:inline-block; font-size:12px; padding:1px 8px; border-radius:10px; background:var(--soft);
+  .tag { display:inline-block; font-size:12px; padding:1px 9px; border-radius:10px; background:var(--soft);
          color:var(--main-d); white-space:nowrap; }
   .tag.ok { background:#e3f3ea; color:var(--ok); } .tag.warn { background:#fbeee4; color:var(--warn); }
-  .tag.bad { background:#fbe9e7; color:var(--bad); }
-  .course { display:flex; gap:12px; justify-content:space-between; align-items:center; padding:10px 0;
+  .tag.bad { background:#fde8ea; color:var(--bad); }
+  .course { display:flex; gap:12px; justify-content:space-between; align-items:center; padding:11px 0;
             border-bottom:1px solid var(--line); }
   .course:last-child { border-bottom:0; }
   .course .t { font-weight:600; }
-  .login { max-width:400px; margin:6vh auto; }
-  .login input, .login select { width:100%; }
-  .seg { display:flex; margin-bottom:8px; }
-  .seg button { flex:1; border-radius:0; }
-  .seg button:first-child { border-radius:7px 0 0 7px; } .seg button:last-child { border-radius:0 7px 7px 0; }
-  .seg button.on { background:var(--main); color:#fff; border-color:var(--main); }
+  .hero { background:var(--grad); color:#fff; border-radius:18px; padding:22px 22px; margin-bottom:16px;
+          box-shadow:0 8px 24px rgba(76,51,153,.22); }
+  .hero h2 { font-size:24px; margin:0 0 4px; } .hero p { margin:0; opacity:.92; }
+  .terms { display:grid; grid-template-columns:repeat(auto-fill,minmax(270px,1fr)); gap:14px; margin-bottom:16px; }
+  .term { text-align:left; background:#fff; border:1px solid var(--line); border-radius:18px; padding:18px 18px 16px;
+          box-shadow:0 3px 14px rgba(76,51,153,.07); position:relative; overflow:hidden; }
+  .term::before { content:""; position:absolute; left:0; top:0; bottom:0; width:6px; background:var(--grad); }
+  .term:hover { transform:translateY(-3px); box-shadow:0 10px 26px rgba(76,51,153,.18); border-color:var(--main); }
+  .term .tt { font-size:20px; color:var(--main-d); display:block; margin-bottom:4px; }
+  .term .go2 { display:block; margin-top:10px; color:var(--pink); font-weight:700; font-size:14px; }
   .chips { display:flex; flex-wrap:wrap; gap:4px; max-height:170px; overflow:auto; padding:6px;
-           border:1px solid var(--line); border-radius:7px; }
+           border:1px solid var(--line); border-radius:9px; }
   .chip { font-size:12px; padding:2px 7px; border-radius:6px; }
   .chip.on { background:var(--main); color:#fff; border-color:var(--main); }
   .chip:not(.on) { text-decoration:line-through; color:var(--sub); }
-  #modal { position:fixed; inset:0; background:rgba(20,30,40,.45); display:flex; align-items:flex-start;
+  #modal { position:fixed; inset:0; background:rgba(42,33,64,.5); display:flex; align-items:flex-start;
            justify-content:center; padding:4vh 12px; overflow:auto; z-index:10; }
-  #modal .box { background:#fff; border-radius:12px; padding:18px; width:100%; max-width:760px; }
-  #toast { position:fixed; left:50%; bottom:24px; transform:translateX(-50%); background:#1c2733; color:#fff;
-           padding:10px 18px; border-radius:8px; z-index:20; max-width:90vw; }
+  #modal .box { background:#fff; border-radius:18px; padding:20px; width:100%; max-width:760px; }
+  #toast { position:fixed; left:50%; bottom:24px; transform:translateX(-50%); background:#2a2140; color:#fff;
+           padding:10px 18px; border-radius:10px; z-index:20; max-width:90vw; }
   #toast.err { background:var(--bad); }
   .hidden { display:none !important; }
   .right { text-align:right; } .mt { margin-top:12px; } .nowrap { white-space:nowrap; }
   .low { background:#fff7f0; }
   #print { display:none; }
+  @media (prefers-reduced-motion: reduce) {
+    .stage, .orb, .intro * , .login { animation-duration:.01s !important; animation-iteration-count:1 !important; }
+  }
   @media print {
     @page { size:A4 landscape; margin:10mm; }
     body { background:#fff; }
@@ -104,6 +168,10 @@ const STATUS = { open: '신청 가능', closed: '신청 마감', cancelled: '폐
 let sb = null;
 let token = null;
 try { token = sessionStorage.getItem('as_token'); } catch (e) {}
+let termId = null;     // 선택한 방과후학교(운영 단위)
+try { termId = +sessionStorage.getItem('as_term') || null; } catch (e) {}
+let intro = !token;    // 첫 화면(인사말) 표시 여부
+const BRAND = '경북여상 방과후학교';
 let S = null;          // 서버 상태
 let R = null;          // 교사용 명단
 let tab = 'my';
@@ -147,10 +215,15 @@ function setToken(t) {
   token = t;
   try { t ? sessionStorage.setItem('as_token', t) : sessionStorage.removeItem('as_token'); } catch (e) {}
 }
+function setTerm(id) {
+  termId = id || null;
+  try { termId ? sessionStorage.setItem('as_term', termId) : sessionStorage.removeItem('as_term'); } catch (e) {}
+}
 async function refresh() {
-  S = await api('as_get_state');
-  R = S.me.role === 'teacher' ? await api('as_get_roster') : null;
-  document.title = S.settings.title;
+  S = await api('as_get_state', { p_term: termId });
+  if (termId && !S.term) setTerm(null);
+  R = S.me.role === 'teacher' && S.term ? await api('as_get_roster', { p_term: termId }) : null;
+  document.title = S.term ? S.term.title : BRAND;
   render();
 }
 function genDates(start, end, days) {
@@ -174,30 +247,47 @@ function doPrint(html) { $('#print').innerHTML = html; window.print(); }
 function render() {
   const app = $('#app');
   if (!sb) { app.innerHTML = setupView(); return; }
-  if (!token || !S) { app.innerHTML = loginView(); return; }
-  if (S.me.must_change) { app.innerHTML = headerView() + `<main><div class="card login">${pwForm(true)}</div></main>`; return; }
+  if (!token || !S) { app.innerHTML = intro ? introView() : loginView(); return; }
+  if (S.me.must_change) { app.innerHTML = headerView() + `<main><div class="card" style="max-width:420px;margin:6vh auto">${pwForm(true)}</div></main>`; return; }
+  if (!S.term) { app.innerHTML = headerView() + `<main>${termsView()}</main>`; return; }
   app.innerHTML = headerView() + `<main>${S.me.role === 'student' ? studentView() : teacherView()}</main>`;
   if (view.detailId && courseById(view.detailId)) openModal(detailView(courseById(view.detailId)));
 }
 function setupView() {
-  return `<main><div class="card login"><h2>설정이 필요합니다</h2>
+  return `<div class="stage"><div class="login"><h2 class="disp">설정이 필요합니다</h2>
     <p><b>config.js</b> 파일에 Supabase 주소(SUPABASE_URL)와 anon 키(SUPABASE_ANON_KEY)를 입력해 주세요.</p>
-    <p class="sub">자세한 방법은 README.md 를 참고하세요.</p></div></main>`;
+    <p class="sub">자세한 방법은 README.md 를 참고하세요.</p></div></div>`;
 }
 function headerView() {
   const me = S.me;
   const who = me.role === 'student'
     ? `${me.grade}학년 ${me.class}반 ${me.number}번 ${esc(me.name)}`
     : `${esc(me.name)} 선생님${me.is_admin ? ' (관리자)' : ''}`;
-  return `<header class="top"><h1>${esc(S.settings.title)}</h1>
+  return `<header class="top"><h1 class="disp">${BRAND}${S.term && !me.must_change ? `<small>${esc(S.term.title)}</small>` : ''}</h1>
     <div class="who"><span>${who}</span>
+      ${S.term && !me.must_change ? '<button class="small" data-a="terms">방과후학교 목록</button>' : ''}
       ${me.must_change ? '' : '<button class="small" data-a="pwOpen">비밀번호 변경</button>'}
       <button class="small" data-a="logout">로그아웃</button></div></header>`;
 }
+const ORBS = '<i class="orb o1"></i><i class="orb o2"></i><i class="orb o3"></i><i class="orb o4"></i>';
+function introView() {
+  let i = 0;
+  const word = (w) => `<span class="w">${[...w].map((c) => `<span class="ch" style="animation-delay:${(1.0 + 0.09 * i).toFixed(2)}s, ${(2.2 + 0.13 * i++).toFixed(2)}s">${c}</span>`).join('')}</span>`;
+  return `<div class="stage intro" data-a="enter" role="button" tabindex="0" aria-label="${BRAND} 시작하기">${ORBS}
+    <div class="in">
+      <div class="hello">안녕하세요, 오늘도 반가워요!</div>
+      <div><span class="school">경북여자상업고등학교</span></div>
+      <h1 class="disp">${word('경북여상')}${word('방과후학교')}</h1>
+      <div class="tag2">배우고 싶은 것을 골라, 내일의 나를 준비하는 시간</div>
+      <div class="go">화면을 눌러 시작하기 →</div>
+    </div></div>`;
+}
 function loginView() {
   const st = loginRole === 'student';
-  return `<main><div class="card login">
-    <h2>방과후학교 로그인</h2>
+  return `<div class="stage">${ORBS}<div class="login">
+    <div class="mark disp">방</div>
+    <h2 class="disp">${BRAND}</h2>
+    <p class="lead">${st ? '학년·반·번호와 이름으로 로그인하세요' : '선생님 이름으로 로그인하세요'}</p>
     <div class="seg"><button data-a="role" data-v="student" class="${st ? 'on' : ''}">학생</button>
       <button data-a="role" data-v="teacher" class="${st ? '' : 'on'}">교사</button></div>
     <form data-f="login">
@@ -208,8 +298,27 @@ function loginView() {
       <label>이름</label><input name="name" required autocomplete="off">
       <label>비밀번호</label><input name="pw" type="password" required>
       <p class="sub">처음 로그인할 때 비밀번호는 <b>2026</b> 입니다. 로그인 후 바로 변경하게 됩니다.</p>
-      <button class="pri" style="width:100%">로그인</button>
-    </form></div></main>`;
+      <button class="pri">로그인</button>
+    </form>
+    <button class="back" data-a="intro">← 첫 화면으로</button></div></div>`;
+}
+/* 방과후학교(운영 단위) 목록 — 학기·방학마다 하나씩 쌓입니다 */
+function termsView() {
+  const me = S.me, adm = isAdmin();
+  const period = (t) => (t.start_date && t.end_date ? `${t.start_date} ~ ${t.end_date}` : '운영 기간 미정');
+  return `<div class="hero"><h2 class="disp">${esc(me.name)}${me.role === 'teacher' ? ' 선생님' : ' 학생'}, 환영합니다!</h2>
+      <p>${me.role === 'teacher' ? '운영할 방과후학교를 선택하세요. 지난 방과후학교 기록도 그대로 남아 있습니다.' : '참여할 방과후학교를 선택하세요.'}</p></div>
+    <div class="terms">${S.terms.map((t) => `<button class="term" data-a="term" data-id="${t.id}">
+        <span class="tt disp">${esc(t.title)}</span><span class="sub">${period(t)}</span><br>
+        ${t.enroll_open ? '<span class="tag ok">수강신청 진행 중</span>' : '<span class="tag">수강신청 닫힘</span>'}
+        <span class="go2">들어가기 →</span></button>`).join('') || '<div class="card">아직 만들어진 방과후학교가 없습니다.</div>'}</div>
+    ${adm ? `<div class="card"><h2>새 방과후학교 만들기</h2>
+      <p class="sub">학기나 방학이 바뀌면 여기서 새로 만드세요. 이전 방과후학교의 강좌·수강 기록은 지워지지 않고 목록에 계속 남습니다.</p>
+      <form data-f="termNew"><div class="row">
+        <div style="flex:2 1 240px"><label>이름</label><input name="title" required placeholder="예: 2027학년도 1학기 방과후학교"></div>
+        <div><label>시작일</label><input name="start_date" type="date"></div>
+        <div><label>종료일</label><input name="end_date" type="date"></div>
+        <div style="flex:0 0 auto"><button class="pri">만들기</button></div></div></form></div>` : ''}`;
 }
 function pwForm(forced) {
   return `<h2>비밀번호 변경</h2>
@@ -222,7 +331,7 @@ function pwForm(forced) {
     </form>`;
 }
 function periodText() {
-  const s = S.settings;
+  const s = S.term;
   return s.start_date && s.end_date ? `${s.start_date} ~ ${s.end_date}` : '운영 기간 미정';
 }
 function capText(c) { return `${c.enrolled}${c.capacity ? ' / ' + c.capacity : ''}명`; }
@@ -233,7 +342,7 @@ function courseMeta(c) {
 
 /* ---------------------------------------------------------------- 학생 */
 function studentView() {
-  const me = S.me, open = S.settings.enroll_open;
+  const me = S.me, open = S.term.enroll_open;
   const mine = new Map(S.my.map((m) => [m.course_id, m]));
   const myCourses = S.courses.filter((c) => mine.has(c.id) && c.status !== 'cancelled');
   const busy = new Set(myCourses.flatMap((c) => typeOf(c.type_code).days));
@@ -281,7 +390,7 @@ function statusTag(c) {
 }
 function myCoursesView() {
   const cs = S.courses.filter((c) => c.teacher_id === S.me.id);
-  const canEdit = isAdmin() || S.settings.course_open;
+  const canEdit = isAdmin() || S.term.course_open;
   return `<div class="card"><div class="row" style="justify-content:space-between"><h2>내 강좌</h2>
       <div style="flex:0 0 auto"><button class="pri" data-a="courseNew" ${canEdit ? '' : 'disabled'}>+ 강좌 개설</button></div></div>
     <p class="sub">운영 기간: ${periodText()}${canEdit ? '' : ' · 지금은 강좌 개설·수정 기간이 아닙니다.'}</p>
@@ -293,7 +402,7 @@ function myCoursesView() {
       : '<p>개설한 강좌가 없습니다. [+ 강좌 개설]을 눌러 강좌를 만들어 보세요.</p>'}</div>`;
 }
 function allCoursesView() {
-  const min = S.settings.min_students, adm = isAdmin();
+  const min = S.term.min_students, adm = isAdmin();
   const rows = S.courses.map((c) => {
     const t = typeOf(c.type_code), low = c.status !== 'cancelled' && c.enrolled < min;
     return `<tr class="${low ? 'low' : ''}"><td class="nowrap">${esc(t.name)}<br><span class="sub">${daysText(t)}</span></td>
@@ -386,7 +495,7 @@ function attendanceHtml(c) {
   return chunks.map((ds, i) => {
     const cols = ds.length ? ds : Array(PER).fill(null);
     return `<section class="sheet"><h2>${esc(c.title)} 출석부</h2>
-      <p>${esc(S.settings.title)} · ${esc(t.name)}(${daysText(t)}) · 담당 ${esc(c.teacher_name)} · ${esc(c.room)} · ${periodText()} · ${i + 1}/${chunks.length}쪽</p>
+      <p>${esc(S.term.title)} · ${esc(t.name)}(${daysText(t)}) · 담당 ${esc(c.teacher_name)} · ${esc(c.room)} · ${periodText()} · ${i + 1}/${chunks.length}쪽</p>
       <table><thead><tr><th>연번</th><th>학번</th><th>이름</th>${cols.map((d) => `<th>${d ? md(d) + '<br>' + dow(d) : '&nbsp;'}</th>`).join('')}</tr></thead>
       <tbody>${ros.map((s, k) => `<tr><td>${k + 1}</td><td>${hakbun(s)}</td><td class="nm">${esc(s.name)}</td>${cols.map(() => '<td class="cell"></td>').join('')}</tr>`).join('')}
       ${[1, 2].map(() => `<tr><td>&nbsp;</td><td></td><td></td>${cols.map(() => '<td class="cell"></td>').join('')}</tr>`).join('')}</tbody></table></section>`;
@@ -414,7 +523,7 @@ function courseForm(c) {
     </form>`;
 }
 function fillDates(dates, typeCode) {
-  const all = genDates(S.settings.start_date, S.settings.end_date, typeOf(typeCode).days);
+  const all = genDates(S.term.start_date, S.term.end_date, typeOf(typeCode).days);
   const on = new Set(dates || all);
   const list = [...new Set([...all, ...on])].sort();
   $('#dateChips').innerHTML = list.length
@@ -450,10 +559,10 @@ function peopleView() {
         <button class="small danger" data-a="teaDel" data-id="${t.id}" data-n="${esc(t.name)}">삭제</button></td></tr>`).join('')}</tbody></table></div></div>`;
 }
 function settingsView() {
-  const s = S.settings;
+  const s = S.term;
   return `<div class="card"><h2>일정·설정</h2>
     <form data-f="settings">
-      <label>제목</label><input name="title" value="${esc(s.title)}" style="width:100%;max-width:420px">
+      <label>방과후학교 이름</label><input name="title" value="${esc(s.title)}" style="width:100%;max-width:420px">
       <div class="row" style="max-width:420px"><div><label>시작일</label><input name="start_date" type="date" value="${s.start_date || ''}"></div>
         <div><label>종료일</label><input name="end_date" type="date" value="${s.end_date || ''}"></div></div>
       <label>폐강 검토 기준 인원 (이 인원 미만이면 '인원 미달' 표시)</label>
@@ -461,6 +570,7 @@ function settingsView() {
       <p><label style="display:inline;color:inherit;font-size:15px"><input type="checkbox" name="course_open" ${s.course_open ? 'checked' : ''}> 교사 강좌 개설·수정 허용</label></p>
       <p><label style="display:inline;color:inherit;font-size:15px"><input type="checkbox" name="enroll_open" ${s.enroll_open ? 'checked' : ''}> 학생 수강신청 열기</label></p>
       <button class="pri">저장</button>
+      <button type="button" class="danger" data-a="termDel" style="float:right">이 방과후학교 삭제</button>
     </form>
     <h3>강좌 유형</h3>
     <table style="max-width:420px"><thead><tr><th>유형</th><th>요일</th><th>신청 방식</th></tr></thead><tbody>
@@ -475,7 +585,12 @@ const A = {
   role: (el) => { loginRole = el.dataset.v; render(); },
   tab: (el) => { tab = el.dataset.v; render(); },
   close: () => closeModal(),
-  logout: async () => { try { await api('as_logout'); } catch (e) {} setToken(null); S = R = null; closeModal(); render(); },
+  enter: () => { intro = false; render(); },
+  intro: () => { intro = true; render(); },
+  term: (el) => run(async () => { setTerm(+el.dataset.id); tab = 'my'; view = { cls: '', listFilter: '', detailId: null, addCls: '' }; await refresh(); window.scrollTo(0, 0); }),
+  terms: () => run(async () => { setTerm(null); closeModal(); await refresh(); }),
+  termDel: () => { if (confirm(`'${S.term.title}'을(를) 삭제할까요?\n강좌가 하나도 없을 때만 삭제됩니다.`)) run(async () => { await api('as_delete_term', { p_id: termId }); setTerm(null); await refresh(); }, '삭제되었습니다.'); },
+  logout: async () => { try { await api('as_logout'); } catch (e) {} setToken(null); setTerm(null); S = R = null; intro = false; closeModal(); render(); },
   pwOpen: () => openModal(pwForm(false)),
   enroll: (el) => run(async () => { await api('as_enroll', { p_course: +el.dataset.id }); await refresh(); }, '신청되었습니다.'),
   cancel: (el) => { if (confirm('신청을 취소할까요?')) run(async () => { await api('as_cancel_enroll', { p_course: +el.dataset.id }); await refresh(); }, '취소되었습니다.'); },
@@ -503,7 +618,7 @@ const A = {
   csvCls: () => { const { head, rows } = classTable(view.cls); downloadCsv(`${view.cls}반_수강현황.csv`, [head, ...rows]); },
   printCls: () => {
     const { head, rows } = classTable(view.cls), [g, c] = view.cls.split('-');
-    doPrint(`<section class="sheet"><h2>${g}학년 ${c}반 방과후학교 수강 현황</h2><p>${esc(S.settings.title)} · ${periodText()}</p>
+    doPrint(`<section class="sheet"><h2>${g}학년 ${c}반 방과후학교 수강 현황</h2><p>${esc(S.term.title)} · ${periodText()}</p>
       <table><thead><tr>${head.map((h) => `<th>${esc(h)}</th>`).join('')}</tr></thead>
       <tbody>${rows.map((r) => `<tr>${r.map((v) => `<td>${esc(v)}</td>`).join('')}</tr>`).join('')}</tbody></table></section>`);
   },
@@ -527,17 +642,21 @@ const F = {
   course: (fd) => run(async () => {
     const dates = [...document.querySelectorAll('#dateChips .chip.on')].map((b) => b.dataset.d);
     await api('as_save_course', { p_course: {
-      id: fd.get('id') || null, type_code: fd.get('type_code'), title: fd.get('title'), room: fd.get('room') || '',
+      id: fd.get('id') || null, term_id: termId, type_code: fd.get('type_code'), title: fd.get('title'), room: fd.get('room') || '',
       capacity: fd.get('capacity') || null, teacher_id: fd.get('teacher_id') || null,
       grades: fd.getAll('grades').map(Number), dates } });
     closeModal(); await refresh();
   }, '저장되었습니다.'),
   settings: (fd) => run(async () => {
-    await api('as_save_settings', { p_settings: {
-      title: fd.get('title'), start_date: fd.get('start_date') || null, end_date: fd.get('end_date') || null,
+    await api('as_save_term', { p_term: {
+      id: termId, title: fd.get('title'), start_date: fd.get('start_date') || null, end_date: fd.get('end_date') || null,
       min_students: fd.get('min_students'), course_open: fd.get('course_open') === 'on', enroll_open: fd.get('enroll_open') === 'on' } });
     await refresh();
   }, '저장되었습니다.'),
+  termNew: (fd) => run(async () => {
+    await api('as_save_term', { p_term: { title: fd.get('title'), start_date: fd.get('start_date') || null, end_date: fd.get('end_date') || null } });
+    await refresh();
+  }, '새 방과후학교를 만들었습니다.'),
   impStu: (fd) => {
     const rows = [], bad = [];
     parseLines(fd.get('text')).forEach((l) => {
@@ -566,6 +685,9 @@ document.addEventListener('submit', (e) => {
   if (!f) return;
   e.preventDefault();
   F[f.dataset.f](new FormData(f));
+});
+document.addEventListener('keydown', (e) => {
+  if ((e.key === 'Enter' || e.key === ' ') && e.target.dataset && e.target.dataset.a === 'enter') A.enter();
 });
 document.addEventListener('change', (e) => {
   const k = e.target.dataset && e.target.dataset.c;
