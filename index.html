@@ -254,7 +254,7 @@
   .sheet.poster .qr img { width:62pt; height:62pt; image-rendering:pixelated; }
   .sheet.poster .qr b { font-size:11pt; } .sheet.poster .qr span { font-size:8pt; }
   .sheet.poster .pw { display:flex; gap:10pt; align-items:flex-start; }
-  .sheet.poster .pl { flex:0 0 55%; } .sheet.poster .pr { flex:1; min-width:0; }
+  .sheet.poster .pl { flex:0 0 52%; } .sheet.poster td.tm { white-space:nowrap; font-size:7.6pt; letter-spacing:-0.2px; } .sheet.poster .pr { flex:1; min-width:0; }
   .sheet.poster h3 { font-size:11.5pt; margin:0 0 4pt; color:#000; }
   .sheet.poster table { table-layout:fixed; font-size:8.5pt; }
   .sheet.poster th { background:#eee; padding:3pt 2pt; }
@@ -749,7 +749,7 @@ function posterHtml(key, qr) {
   const srows = studs.map((s) => { const m = mine.get(s.id) || {};
     return `<tr><td>${s.number}</td><td class="nm">${esc(s.name)}</td>${[1, 2, 3, 4, 5].map((d) => `<td class="cs">${(m[d] || []).map(esc).join('<br>')}</td>`).join('')}</tr>`; }).join('');
   const crows = cs.map((c) => `<tr><td class="ty">${esc(typeOf(c.type_code).name)}</td><td class="l">${esc(c.title)}</td><td>${daysText(c)}</td>
-      <td>${esc((c.period || '').replace(/\s*\(/, '<br>(')).replace('&lt;br&gt;', '<br>')}</td><td>${esc(c.room)}</td><td>${esc(c.teacher_name)}</td></tr>`).join('');
+      <td class="tm">${esc(c.period)}</td><td>${esc(c.room)}</td><td>${esc(c.teacher_name)}</td></tr>`).join('');
   return `<section class="sheet poster">
     <div class="ph"><div><h2>${g}학년 ${cl}반 방과후학교 수강 현황</h2>
         <p>${esc(S.term.title)} · ${periodText()} · 학생 ${studs.length}명 (수강 ${studs.length - none}명)</p></div>
@@ -759,7 +759,7 @@ function posterHtml(key, qr) {
         <table><colgroup><col style="width:7%"><col style="width:13%"><col span="5" style="width:16%"></colgroup>
           <thead><tr><th>번호</th><th>이름</th><th>월</th><th>화</th><th>수</th><th>목</th><th>금</th></tr></thead><tbody>${srows || '<tr><td colspan="7">학생이 없습니다.</td></tr>'}</tbody></table></div>
       <div class="pr"><h3>전체 강좌 운영 시간</h3>
-        <table><colgroup><col style="width:13%"><col style="width:30%"><col style="width:10%"><col style="width:20%"><col style="width:15%"><col style="width:12%"></colgroup>
+        <table><colgroup><col style="width:11%"><col style="width:26%"><col style="width:9%"><col style="width:27%"><col style="width:16%"><col style="width:11%"></colgroup>
           <thead><tr><th>유형</th><th>강좌명</th><th>요일</th><th>교시·시간</th><th>강의실</th><th>담당</th></tr></thead><tbody>${crows || '<tr><td colspan="6">강좌가 없습니다.</td></tr>'}</tbody></table>
         <p class="ft">출력일 ${fmt(new Date())} · 결강·보강 등 변경 사항은 QR로 접속해 확인하세요.</p></div>
     </div></section>`;
