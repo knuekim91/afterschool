@@ -196,7 +196,10 @@ const md = (s) => { const d = toDate(s); return `${d.getMonth() + 1}/${d.getDate
 const dow = (s) => DAY[toDate(s).getDay() || 7];
 const hakbun = (s) => `${s.grade}${pad(s.class)}${pad(s.number)}`;
 const typeOf = (code) => S.types.find((t) => t.code === code) || { name: code, days: [], assign_only: false };
-const daysText = (t) => t.days.map((d) => DAY[d]).join('·');
+const daysText = (t) => (t.days || []).map((d) => DAY[d]).join('·');     // 유형 또는 강좌의 요일
+// 화면에 보여 줄 유형: 사용 중인 유형 + (숨김 유형이라도) 이 방과후학교에 강좌가 있는 유형
+const shownTypes = () => S.types.filter((t) => t.active !== false || S.courses.some((c) => c.type_code === t.code));
+const typeDatesOf = (code) => ((S.type_dates || []).find((x) => x.type_code === code) || {}).dates || [];
 const courseById = (id) => S.courses.find((c) => c.id === id);
 const isAdmin = () => S && S.me.is_admin;
 
@@ -230,6 +233,8 @@ function setTerm(id) {
 async function refresh() {
   S = await api('as_get_state', { p_term: termId });
   if (termId && !S.term) setTerm(null);
+  S.type_dates = S.type_dates || [];
+  S.courses.forEach((c) => { c.days = c.days || typeOf(c.type_code).days || []; c.period = c.period || ''; });   // 이전 구조와도 호환
   R = S.me.role === 'teacher' && S.term ? await api('as_get_roster', { p_term: termId }) : null;
   document.title = S.term ? S.term.title : BRAND;
   render();
@@ -345,15 +350,15 @@ function periodText() {
 function capText(c) { return `${c.enrolled}${c.capacity ? ' / ' + c.capacity : ''}명`; }
 function courseMeta(c) {
   const t = typeOf(c.type_code);
-  return `<span class="tag">${esc(t.name)} ${daysText(t)}</span> ${esc(c.teacher_name)} 선생님 · ${esc(c.room || '강의실 미정')} · ${c.grades.join(',')}학년 · ${capText(c)}`;
+  return `<span class="tag">${esc(t.name)} ${daysText(c)}</span>${c.period ? ` ${esc(c.period)} ·` : ''} ${esc(c.teacher_name)} 선생님 · ${esc(c.room || '강의실 미정')} · ${c.grades.join(',')}학년 · ${capText(c)}`;
 }
 
 /* ---------------------------------------------------------------- 학생 */
 /* 월~금 주간 시간표: 신청(지정)된 강좌가 요일 칸에 표시됩니다 */
 function timetable(myCourses) {
   const cell = (d) => {
-    const c = myCourses.find((x) => typeOf(x.type_code).days.includes(d));
-    return c ? `<td class="on"><b>${esc(c.title)}</b><span>${esc(typeOf(c.type_code).name)}</span><span>${esc(c.room || '강의실 미정')} · ${esc(c.teacher_name)}</span></td>`
+    const c = myCourses.find((x) => x.days.includes(d));
+    return c ? `<td class="on"><b>${esc(c.title)}</b><span>${esc(typeOf(c.type_code).name)}${c.period ? ' · ' + esc(c.period) : ''}</span><span>${esc(c.room || '강의실 미정')} · ${esc(c.teacher_name)}</span></td>`
              : '<td><span class="none">비어 있음</span></td>';
   };
   return `<div class="scroll"><table class="week"><thead><tr>${[1, 2, 3, 4, 5].map((d) => `<th>${DAY[d]}</th>`).join('')}</tr></thead>
@@ -363,7 +368,7 @@ function studentView() {
   const me = S.me, open = S.term.enroll_open;
   const mine = new Map(S.my.map((m) => [m.course_id, m]));
   const myCourses = S.courses.filter((c) => mine.has(c.id) && c.status !== 'cancelled');
-  const busy = new Set(myCourses.flatMap((c) => typeOf(c.type_code).days));
+  const busy = new Set(myCourses.flatMap((c) => c.days));
   const list = S.courses.filter((c) => c.status !== 'cancelled' && c.grades.includes(me.grade));
 
   const action = (c) => {
@@ -374,7 +379,7 @@ function studentView() {
     if (!open) return '<span class="tag">신청 기간 아님</span>';
     if (c.status !== 'open') return '<span class="tag warn">마감</span>';
     if (c.capacity && c.enrolled >= c.capacity) return '<span class="tag warn">정원 마감</span>';
-    if (t.days.some((d) => busy.has(d))) return '<span class="tag">요일 중복</span>';
+    if (c.days.some((d) => busy.has(d))) return '<span class="tag">요일 중복</span>';
     return `<button class="pri" data-a="enroll" data-id="${c.id}">신청</button>`;
   };
   const item = (c, withAction) => `<div class="course"><div><div class="t">${esc(c.title)}</div>
@@ -386,10 +391,10 @@ function studentView() {
     ${myCourses.length ? myCourses.map((c) => item(c, true)).join('') : '<p>아직 신청한 강좌가 없습니다.</p>'}</div>`;
   html += `<div class="card"><h2>개설 강좌 (${me.grade}학년)</h2>
     <p class="sub">같은 요일에 열리는 강좌는 하나만 신청할 수 있습니다.</p>`;
-  for (const t of S.types) {
+  for (const t of shownTypes()) {
     const cs = list.filter((c) => c.type_code === t.code);
     if (!cs.length) continue;
-    html += `<h3>${esc(t.name)} (${daysText(t)})${t.assign_only ? ' — 선생님이 수강생을 지정합니다' : ''}</h3>` + cs.map((c) => item(c, true)).join('');
+    html += `<h3>${esc(t.name)}${t.assign_only ? ' — 선생님이 수강생을 지정합니다' : ''}</h3>` + cs.map((c) => item(c, true)).join('');
   }
   if (!list.length) html += '<p>개설된 강좌가 없습니다.</p>';
   return html + '</div>';
@@ -425,7 +430,7 @@ function allCoursesView() {
   const min = S.term.min_students, adm = isAdmin();
   const rows = S.courses.map((c) => {
     const t = typeOf(c.type_code), low = c.status !== 'cancelled' && c.enrolled < min;
-    return `<tr class="${low ? 'low' : ''}"><td class="nowrap">${esc(t.name)}<br><span class="sub">${daysText(t)}</span></td>
+    return `<tr class="${low ? 'low' : ''}"><td class="nowrap">${esc(t.name)}<br><span class="sub">${daysText(c)}${c.period ? ' ' + esc(c.period) : ''}</span></td>
       <td>${esc(c.title)}</td><td class="nowrap">${esc(c.teacher_name)}</td><td>${esc(c.room)}</td>
       <td class="nowrap">${c.grades.join(',')}</td>
       <td class="nowrap">${capText(c)}${low ? ' <span class="tag warn">인원 미달</span>' : ''}</td>
@@ -465,10 +470,11 @@ function classTable(key) {
     if (!byStu.has(e.student_id)) byStu.set(e.student_id, {});
     byStu.get(e.student_id)[c.type_code] = c.title;
   });
-  const head = ['번호', '이름', ...S.types.map((t) => `${t.name}(${daysText(t)})`)];
+  const types = shownTypes();
+  const head = ['번호', '이름', ...types.map((t) => t.name)];
   const rows = studentsOf(key).map((s) => {
     const m = byStu.get(s.id) || {};
-    return [s.number, s.name, ...S.types.map((t) => m[t.code] || '')];
+    return [s.number, s.name, ...types.map((t) => m[t.code] || '')];
   });
   return { head, rows };
 }
@@ -528,7 +534,7 @@ function attendanceHtml(c) {
   return chunks.map((ds, i) => {
     const cols = ds.length ? ds : Array(PER).fill(null);
     return `<section class="sheet"><h2>${esc(c.title)} 출석부</h2>
-      <p>${esc(S.term.title)} · ${esc(t.name)}(${daysText(t)}) · 담당 ${esc(c.teacher_name)} · ${esc(c.room)} · ${periodText()} · ${i + 1}/${chunks.length}쪽</p>
+      <p>${esc(S.term.title)} · ${esc(t.name)}(${daysText(c)}${c.period ? ' ' + esc(c.period) : ''}) · 담당 ${esc(c.teacher_name)} · ${esc(c.room)} · ${periodText()} · ${i + 1}/${chunks.length}쪽</p>
       <table><thead><tr><th>연번</th><th>학번</th><th>이름</th>${cols.map((d) => `<th>${d ? md(d) + '<br>' + dow(d) : '&nbsp;'}</th>`).join('')}</tr></thead>
       <tbody>${ros.map((s, k) => `<tr><td>${k + 1}</td><td>${hakbun(s)}</td><td class="nm">${esc(s.name)}</td>${cols.map(() => '<td class="cell"></td>').join('')}</tr>`).join('')}
       ${[1, 2].map(() => `<tr><td>&nbsp;</td><td></td><td></td>${cols.map(() => '<td class="cell"></td>').join('')}</tr>`).join('')}</tbody></table></section>`;
@@ -538,15 +544,19 @@ function attendanceHtml(c) {
 /* 강좌 개설·수정 폼 */
 function courseForm(c) {
   const isNew = !c;
-  c = c || { type_code: S.types[0].code, title: '', room: '', grades: [1, 2, 3], capacity: '', teacher_id: S.me.id, dates: null };
+  const t0 = S.types.find((t) => t.active !== false) || S.types[0];
+  c = c || { type_code: t0.code, title: '', room: '', grades: [1, 2, 3], capacity: '', teacher_id: S.me.id, dates: null, days: t0.days, period: t0.period || '' };
   return `<h2>${isNew ? '강좌 개설' : '강좌 수정'}</h2>
     <form data-f="course"><input type="hidden" name="id" value="${isNew ? '' : c.id}">
       <div class="row"><div><label>강좌 유형</label><select name="type_code" data-c="formType">
-          ${S.types.map((t) => `<option value="${t.code}" ${t.code === c.type_code ? 'selected' : ''}>${esc(t.name)} (${daysText(t)})</option>`).join('')}</select></div>
+          ${S.types.filter((t) => t.active !== false || t.code === c.type_code).map((t) => `<option value="${t.code}" ${t.code === c.type_code ? 'selected' : ''}>${esc(t.name)}</option>`).join('')}</select></div>
         <div style="flex:2 1 220px"><label>강좌명</label><input name="title" required value="${esc(c.title)}"></div></div>
       <div class="row"><div><label>강의실</label><input name="room" value="${esc(c.room)}"></div>
         <div><label>정원 (비우면 제한 없음)</label><input name="capacity" type="number" min="1" value="${c.capacity ?? ''}"></div>
         ${isAdmin() ? `<div><label>담당 교사</label><select name="teacher_id">${S.teachers.map((t) => `<option value="${t.id}" ${t.id === c.teacher_id ? 'selected' : ''}>${esc(t.name)}</option>`).join('')}</select></div>` : ''}</div>
+      <div class="row"><div><label>수업 요일 (이 강좌가 열리는 요일만 고르세요)</label>
+          <div>${[1, 2, 3, 4, 5].map((d) => `<label style="display:inline-block;margin-right:12px;color:inherit;font-size:15px"><input type="checkbox" name="days" value="${d}" data-c="formDay" ${c.days.includes(d) ? 'checked' : ''}> ${DAY[d]}</label>`).join('')}</div></div>
+        <div><label>교시·시간</label><input name="period" value="${esc(c.period || '')}" placeholder="예: 8·9교시 (16:40~18:30)"></div></div>
       <label>수강 학년</label>
       <div>${[1, 2, 3].map((g) => `<label style="display:inline-block;margin-right:14px;color:inherit;font-size:15px"><input type="checkbox" name="grades" value="${g}" ${c.grades.includes(g) ? 'checked' : ''}> ${g}학년</label>`).join('')}</div>
       <label>강의 날짜 <span id="dateCount"></span> — 수업이 없는 날(공휴일·시험 등)은 눌러서 빼 주세요.</label>
@@ -555,16 +565,20 @@ function courseForm(c) {
       <div class="right mt"><button type="button" data-a="close">취소</button> <button class="pri">저장</button></div>
     </form>`;
 }
-function fillDates(dates, typeCode) {
-  const all = genDates(S.term.start_date, S.term.end_date, typeOf(typeCode).days);
+const formDays = () => [...document.querySelectorAll('#modal [name=days]:checked')].map((x) => +x.value);
+function fillDates(dates, typeCode, days) {
+  days = days || formDays();
+  // 유형별 수업 날짜가 등록되어 있으면 그 날짜(선택한 요일만), 없으면 운영 기간·요일로 계산
+  const td = typeDatesOf(typeCode);
+  const all = td.length ? td.filter((d) => days.includes(toDate(d).getDay())) : genDates(S.term.start_date, S.term.end_date, days);
   const on = new Set(dates || all);
   const list = [...new Set([...all, ...on])].sort();
   $('#dateChips').innerHTML = list.length
     ? list.map((d) => `<button type="button" class="chip ${on.has(d) ? 'on' : ''}" data-a="chip" data-d="${d}">${md(d)}(${dow(d)})</button>`).join('')
-    : '<span class="sub">운영 기간이 정해지지 않았습니다. 관리자가 [일정·설정]에서 기간을 입력하면 날짜가 자동으로 채워집니다.</span>';
+    : '<span class="sub">표시할 날짜가 없습니다. 수업 요일을 골랐는지 확인해 주세요. 운영 기간이나 유형별 수업 날짜는 관리자가 [일정·설정]에서 입력합니다.</span>';
   countDates();
 }
-function countDates() { $('#dateCount').textContent = `(${document.querySelectorAll('#dateChips .chip.on').length}회)`; }
+function countDates() { $('#dateCount').textContent = `(${document.querySelectorAll('#dateChips .chip.on').length}일)`; }
 
 /* ---------------------------------------------------------------- 관리자 */
 function peopleView() {
@@ -607,8 +621,11 @@ function settingsView() {
       <button type="button" class="danger" data-a="termDel" style="float:right">이 방과후학교 삭제</button>
     </form>
     <h3>강좌 유형</h3>
-    <table style="max-width:420px"><thead><tr><th>유형</th><th>요일</th><th>신청 방식</th></tr></thead><tbody>
-      ${S.types.map((t) => `<tr><td>${esc(t.name)}</td><td>${daysText(t)}</td><td>${t.assign_only ? '교사 지정' : '학생 신청'}</td></tr>`).join('')}</tbody></table>
+    <p class="sub">유형별 <b>수업 날짜</b>를 등록해 두면, 선생님이 강좌를 개설할 때 그 날짜가 강의 날짜로 자동 입력됩니다(강좌의 수업 요일에 해당하는 날짜만).</p>
+    <div class="scroll"><table><thead><tr><th>유형</th><th>기본 요일</th><th>기본 교시</th><th>신청 방식</th><th>수업 날짜</th><th></th></tr></thead><tbody>
+      ${shownTypes().map((t) => `<tr><td>${esc(t.name)}</td><td>${daysText(t)}</td><td>${esc(t.period || '')}</td><td>${t.assign_only ? '교사 지정' : '학생 신청'}</td>
+        <td>${typeDatesOf(t.code).length ? typeDatesOf(t.code).length + '일' : '<span class="sub">미등록</span>'}</td>
+        <td class="right"><button class="small" data-a="typeDates" data-v="${t.code}">날짜 편집</button></td></tr>`).join('')}</tbody></table></div>
     <p class="sub">운영 순서: ① 기간 입력 → ② 교사 강좌 개설 → ③ 기초반 학생 지정 → ④ 수강신청 열기 → ⑤ 신청 닫고 [전체 강좌]에서 정원·폐강 조정 → ⑥ 출석부 인쇄</p></div>`;
 }
 
@@ -628,11 +645,26 @@ const A = {
   pwOpen: () => openModal(pwForm(false)),
   enroll: (el) => run(async () => { await api('as_enroll', { p_course: +el.dataset.id }); await refresh(); }, '신청되었습니다.'),
   cancel: (el) => { if (confirm('신청을 취소할까요?')) run(async () => { await api('as_cancel_enroll', { p_course: +el.dataset.id }); await refresh(); }, '취소되었습니다.'); },
-  courseNew: () => { openModal(courseForm(null)); fillDates(null, S.types[0].code); },
-  courseEdit: (el) => { const c = courseById(+el.dataset.id); openModal(courseForm(c)); fillDates(c.dates, c.type_code); },
+  courseNew: () => { openModal(courseForm(null)); fillDates(null, $('#modal [name=type_code]').value); },
+  courseEdit: (el) => { const c = courseById(+el.dataset.id); openModal(courseForm(c)); fillDates(c.dates.length ? c.dates : null, c.type_code, c.days); },
+  typeDates: (el) => {
+    const t = typeOf(el.dataset.v), cur = new Set(typeDatesOf(t.code));
+    const all = [...new Set([...genDates(S.term.start_date, S.term.end_date, [1, 2, 3, 4, 5]), ...cur])].sort();
+    openModal(`<h2>${esc(t.name)} 수업 날짜</h2>
+      <p class="sub">${esc(S.term.title)} · 수업이 있는 날을 눌러 켜 주세요. <span id="dateCount"></span></p>
+      <form data-f="typeDates"><input type="hidden" name="type" value="${t.code}">
+        <div class="chips" id="dateChips" style="max-height:300px">${all.map((d) => `<button type="button" class="chip ${cur.has(d) ? 'on' : ''}" data-a="chip" data-d="${d}">${md(d)}(${dow(d)})</button>`).join('')
+          || '<span class="sub">먼저 위에서 시작일·종료일을 저장해 주세요.</span>'}</div>
+        <div class="mt"><button type="button" class="small" data-a="chipDays">기본 요일(${daysText(t)}) 모두 켜기</button> <button type="button" class="small" data-a="chipNone">모두 끄기</button></div>
+        <div class="right mt"><button type="button" data-a="close">취소</button> <button class="pri">저장</button></div></form>`);
+    $('#modal form').dataset.days = t.days.join(',');
+    countDates();
+  },
+  chipDays: () => { const ds = $('#modal form').dataset.days.split(',').map(Number); document.querySelectorAll('#dateChips .chip').forEach((b) => b.classList.toggle('on', ds.includes(toDate(b.dataset.d).getDay()))); countDates(); },
+  chipNone: () => { document.querySelectorAll('#dateChips .chip').forEach((b) => b.classList.remove('on')); countDates(); },
   courseDel: (el) => { if (confirm('이 강좌를 삭제할까요?')) run(async () => { await api('as_delete_course', { p_course: +el.dataset.id }); await refresh(); }, '삭제되었습니다.'); },
   chip: (el) => { el.classList.toggle('on'); countDates(); },
-  datesReset: () => fillDates(null, $('[name=type_code]').value),
+  datesReset: () => fillDates(null, $('#modal [name=type_code]').value),
   detail: (el) => { view.detailId = +el.dataset.id; view.addCls = ''; openModal(detailView(courseById(view.detailId))); },
   assign: (el) => run(async () => { await api('as_assign', { p_course: +el.dataset.id, p_student: +el.dataset.s }); await refresh(); }, '지정되었습니다.'),
   unassign: (el) => { if (confirm('이 학생을 수강생에서 제외할까요?')) run(async () => { await api('as_unassign', { p_course: +el.dataset.id, p_student: +el.dataset.s }); await refresh(); }, '제외되었습니다.'); },
@@ -648,7 +680,7 @@ const A = {
       ...rosterOf(c.id).map((s) => [hakbun(s), s.grade, s.class, s.number, s.name, s.assigned ? '교사 지정' : '학생 신청'])]);
   },
   csvCourses: () => downloadCsv('강좌현황.csv', [['유형', '요일', '강좌명', '교사', '강의실', '학년', '인원', '정원', '상태'],
-    ...S.courses.map((c) => { const t = typeOf(c.type_code); return [t.name, daysText(t), c.title, c.teacher_name, c.room, c.grades.join(' '), c.enrolled, c.capacity ?? '', STATUS[c.status]]; })]),
+    ...S.courses.map((c) => { const t = typeOf(c.type_code); return [t.name, daysText(c) + (c.period ? ' ' + c.period : ''), c.title, c.teacher_name, c.room, c.grades.join(' '), c.enrolled, c.capacity ?? '', STATUS[c.status]]; })]),
   csvCls: () => { const { head, rows } = classTable(view.cls); downloadCsv(`${view.cls}반_수강현황.csv`, [head, ...rows]); },
   printCls: () => {
     const { head, rows } = classTable(view.cls), [g, c] = view.cls.split('-');
@@ -678,7 +710,7 @@ const F = {
     await api('as_save_course', { p_course: {
       id: fd.get('id') || null, term_id: termId, type_code: fd.get('type_code'), title: fd.get('title'), room: fd.get('room') || '',
       capacity: fd.get('capacity') || null, teacher_id: fd.get('teacher_id') || null,
-      grades: fd.getAll('grades').map(Number), dates } });
+      grades: fd.getAll('grades').map(Number), days: fd.getAll('days').map(Number), period: fd.get('period') || '', dates } });
     closeModal(); await refresh();
   }, '저장되었습니다.'),
   settings: (fd) => run(async () => {
@@ -687,6 +719,11 @@ const F = {
       min_students: fd.get('min_students'), course_open: fd.get('course_open') === 'on', enroll_open: fd.get('enroll_open') === 'on' } });
     await refresh();
   }, '저장되었습니다.'),
+  typeDates: (fd) => run(async () => {
+    const dates = [...document.querySelectorAll('#dateChips .chip.on')].map((b) => b.dataset.d);
+    await api('as_set_type_dates', { p_term: termId, p_type: fd.get('type'), p_dates: dates });
+    closeModal(); await refresh();
+  }, '수업 날짜를 저장했습니다.'),
   termNew: (fd) => run(async () => {
     await api('as_save_term', { p_term: { title: fd.get('title'), start_date: fd.get('start_date') || null, end_date: fd.get('end_date') || null } });
     await refresh();
@@ -731,7 +768,13 @@ document.addEventListener('change', (e) => {
   }
   const k = e.target.dataset && e.target.dataset.c;
   if (!k) return;
-  if (k === 'formType') return fillDates(null, e.target.value);
+  if (k === 'formType') {            // 유형을 바꾸면 요일·교시를 그 유형의 기본값으로
+    const t = typeOf(e.target.value);
+    document.querySelectorAll('#modal [name=days]').forEach((x) => { x.checked = t.days.includes(+x.value); });
+    $('#modal [name=period]').value = t.period || '';
+    return fillDates(null, t.code);
+  }
+  if (k === 'formDay') return fillDates(null, $('#modal [name=type_code]').value);
   view[k] = e.target.value;
   if (k === 'addCls') openModal(detailView(courseById(view.detailId))); else render();
 });
