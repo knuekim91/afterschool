@@ -204,6 +204,11 @@
   .ad.m-t { background:#f1ebff; border-color:#d6c8f5; } .ad.m-t b { color:var(--main-d); font-size:12px; }
   .ad.kx { background:#eeeaf3; } .ad.kx b, .ad.ft b, .ad.no b { color:#a59fb8; font-size:12px; font-weight:500; }
   .ad.ft { border-style:dashed; }
+  .need { border:1px solid #f0c9a8; background:#fff6ec; color:#7a4a1c; border-radius:11px; padding:10px 13px; font-size:14px; margin-bottom:6px; }
+  .req { color:var(--bad); font-weight:700; }
+  .miss { border-color:var(--bad) !important; box-shadow:0 0 0 3px rgba(192,48,63,.16); border-radius:9px; }
+  div.miss { padding:4px 6px; border:1px solid var(--bad); }
+  .missbox { border:1px solid #f3bcc3; background:#fdecee; border-radius:11px; padding:10px 13px; margin-top:12px; line-height:1.9; }
   .chips { display:flex; flex-wrap:wrap; gap:4px; max-height:170px; overflow:auto; padding:6px;
            border:1px solid var(--line); border-radius:9px; }
   .chip { font-size:12px; padding:2px 7px; border-radius:6px; }
@@ -636,7 +641,7 @@ function myCoursesView() {
   return `<div class="card"><div class="row" style="justify-content:space-between"><h2>내 강좌</h2>
       <div style="flex:0 0 auto"><button class="pri" data-a="courseNew" ${canEdit ? '' : 'disabled'}>+ 강좌 개설</button></div></div>
     <p class="sub">운영 기간: ${periodText()}${canEdit ? '' : ' · 지금은 강좌 개설·수정 기간이 아닙니다.'}</p>
-    ${cs.length ? cs.map((c) => `<div class="course"><div><div class="t">${esc(c.title)} ${statusTag(c)}</div>
+    ${cs.length ? cs.map((c) => `<div class="course"><div><div class="t">${esc(c.title)} ${statusTag(c)}${incomplete(c) ? ' <span class="tag bad">작성 중 · 빠진 항목 있음</span>' : ''}</div>
         <div class="sub">${courseMeta(c)} · 수업 ${c.dates.length}회 · 계획서 ${planDone(c)}/${c.dates.length} 입력</div></div>
       <div class="nowrap"><button class="small" data-a="printPlan" data-id="${c.id}">계획서 인쇄</button>
         <button class="small" data-a="detail" data-id="${c.id}">명단·출석부</button>
@@ -884,6 +889,8 @@ async function saveAtt(courseId, items) {       // 화면을 먼저 바꾸고 �
 }
 
 /* 강의계획서(프로그램별 세부 운영 계획서) 인쇄 */
+// 아직 채우지 않은 항목이 있는 강좌인지 (임시 저장 상태)
+const incomplete = (c) => !c.room || !c.period || !c.target || !c.level || !c.textbook || !c.goals || !c.dates.length || c.dates.some((d) => !c.contents[d]);
 const planDone = (c) => c.dates.filter((d) => c.contents[d]).length;
 function planHtml(c) {
   const t = typeOf(c.type_code), h = c.hours ?? hoursOf(c.period), n = c.dates.length;
@@ -912,29 +919,66 @@ function courseForm(c) {
   const t0 = S.types.find((t) => t.active !== false) || S.types[0];
   c = c || { type_code: t0.code, title: '', room: '', grades: [1, 2, 3], capacity: '', teacher_id: S.me.id, dates: null, days: t0.days, period: t0.period || '' };
   return `<h2>${isNew ? '강좌 개설' : '강좌 수정'}</h2>
-    <form data-f="course"><input type="hidden" name="id" value="${isNew ? '' : c.id}">
-      <div class="row"><div><label>강좌 유형</label><select name="type_code" data-c="formType">
+    <div class="need"><b>모든 항목을 빠짐없이 입력해 주세요.</b> <span class="req">*</span> 표시는 필수이며, 날짜별 수업 내용까지 모두 적어야 [제출]됩니다.
+      정원만 비워 둘 수 있습니다(비우면 인원 제한 없음). 아직 다 못 썼으면 <b>[임시 저장]</b>으로 저장해 두고 나중에 이어서 쓰세요.</div>
+    <form data-f="course" novalidate><input type="hidden" name="id" value="${isNew ? '' : c.id}">
+      <div class="row"><div><label>강좌 유형 <span class="req">*</span></label><select name="type_code" data-c="formType">
           ${S.types.filter((t) => t.active !== false || t.code === c.type_code).map((t) => `<option value="${t.code}" ${t.code === c.type_code ? 'selected' : ''}>${esc(t.name)}</option>`).join('')}</select></div>
-        <div style="flex:2 1 220px"><label>강좌명</label><input name="title" required value="${esc(c.title)}"></div></div>
-      <div class="row"><div><label>강의실</label><input name="room" value="${esc(c.room)}"></div>
+        <div style="flex:2 1 220px"><label>강좌명 <span class="req">*</span></label><input name="title" value="${esc(c.title)}"></div></div>
+      <div class="row"><div><label>강의실 <span class="req">*</span></label><input name="room" value="${esc(c.room)}"></div>
         <div><label>정원 (비우면 제한 없음)</label><input name="capacity" type="number" min="1" value="${c.capacity ?? ''}"></div>
         ${isAdmin() ? `<div><label>담당 교사</label><select name="teacher_id">${S.teachers.map((t) => `<option value="${t.id}" ${t.id === c.teacher_id ? 'selected' : ''}>${esc(t.name)}</option>`).join('')}</select></div>` : ''}</div>
-      <div class="row"><div><label>수업 요일 (이 강좌가 열리는 요일만 고르세요)</label>
+      <div class="row"><div><label>수업 요일 <span class="req">*</span> (이 강좌가 열리는 요일만 고르세요)</label>
           <div>${[1, 2, 3, 4, 5].map((d) => `<label style="display:inline-block;margin-right:12px;color:inherit;font-size:15px"><input type="checkbox" name="days" value="${d}" data-c="formDay" ${c.days.includes(d) ? 'checked' : ''}> ${DAY[d]}</label>`).join('')}</div></div>
-        <div><label>교시·시간</label><input name="period" value="${esc(c.period || '')}" placeholder="예: 8·9교시 (16:40~18:30)"></div></div>
-      <label>수강 학년</label>
+        <div><label>교시·시간 <span class="req">*</span></label><input name="period" value="${esc(c.period || '')}" placeholder="예: 8·9교시 (16:40~18:30)"></div></div>
+      <label>수강 학년 <span class="req">*</span></label>
       <div>${[1, 2, 3].map((g) => `<label style="display:inline-block;margin-right:14px;color:inherit;font-size:15px"><input type="checkbox" name="grades" value="${g}" ${c.grades.includes(g) ? 'checked' : ''}> ${g}학년</label>`).join('')}</div>
       <h3>강의계획서</h3>
-      <div class="row"><div style="flex:2 1 200px"><label>대상</label><input name="target" value="${esc(c.target || '')}" placeholder="예: 2학년 희망학생"></div>
-        <div><label>수준</label><select name="level">${['', '상', '중', '하'].map((v) => `<option ${v === (c.level || '') ? 'selected' : ''}>${v}</option>`).join('')}</select></div>
-        <div><label>회당 수업 시간</label><input name="hours" type="number" min="0.5" step="0.5" value="${c.hours ?? hoursOf(c.period)}"></div></div>
-      <label>교재명</label><input name="textbook" value="${esc(c.textbook || '')}" style="width:100%">
-      <label>수업 목표</label><textarea name="goals" style="min-height:64px;font-family:inherit;font-size:15px" placeholder="1. …&#10;2. …">${esc(c.goals || '')}</textarea>
-      <label>강의 날짜와 수업 내용 <span id="dateCount"></span> — 날짜를 누르면 수업일에서 빼거나 다시 넣을 수 있고, 수업일에는 오른쪽에 수업 내용을 적습니다.</label>
+      <div class="row"><div style="flex:2 1 200px"><label>대상 <span class="req">*</span></label><input name="target" value="${esc(c.target || '')}" placeholder="예: 2학년 희망학생"></div>
+        <div><label>수준 <span class="req">*</span></label><select name="level">${['', '상', '중', '하'].map((v) => `<option ${v === (c.level || '') ? 'selected' : ''}>${v}</option>`).join('')}</select></div>
+        <div><label>회당 수업 시간 <span class="req">*</span></label><input name="hours" type="number" min="0.5" step="0.5" value="${c.hours ?? hoursOf(c.period)}"></div></div>
+      <label>교재명 <span class="req">*</span> <span class="sub">(교재가 없으면 '자체 제작', '유인물' 등으로 적어 주세요)</span></label><input name="textbook" value="${esc(c.textbook || '')}" style="width:100%">
+      <label>수업 목표 <span class="req">*</span></label><textarea name="goals" style="min-height:64px;font-family:inherit;font-size:15px" placeholder="1. …&#10;2. …">${esc(c.goals || '')}</textarea>
+      <label>강의 날짜와 수업 내용 <span class="req">*</span> <span id="dateCount"></span> — 날짜를 누르면 수업일에서 빼거나 다시 넣을 수 있고, 수업일에는 오른쪽에 수업 내용을 적습니다.</label>
       <div class="dlist" id="dateChips"></div>
       <div class="mt"><button type="button" class="small" data-a="datesReset">운영 기간·요일로 날짜 다시 채우기</button></div>
-      <div class="right mt"><button type="button" data-a="close">취소</button> <button class="pri">저장</button></div>
+      <div id="missBox" class="missbox hidden"></div>
+      <div class="right mt"><button type="button" data-a="close">취소</button> <button name="draft" value="1">임시 저장</button> <button class="pri">제출 (저장)</button></div>
     </form>`;
+}
+// 강좌 개설 폼: 빠진 항목 찾기 → [{label, el}]
+function courseMissing(f) {
+  const q = (sel) => f.querySelector(sel), miss = [], add = (label, el) => miss.push({ label, el });
+  const txt = (name) => (q(`[name=${name}]`).value || '').trim();
+  if (!txt('title')) add('강좌명', q('[name=title]'));
+  if (!txt('room')) add('강의실', q('[name=room]'));
+  if (!f.querySelectorAll('[name=days]:checked').length) add('수업 요일', q('[name=days]').parentElement.parentElement);
+  if (!txt('period')) add('교시·시간', q('[name=period]'));
+  if (!f.querySelectorAll('[name=grades]:checked').length) add('수강 학년', q('[name=grades]').parentElement.parentElement);
+  if (!txt('target')) add('대상', q('[name=target]'));
+  if (!txt('level')) add('수준', q('[name=level]'));
+  if (!(parseFloat(txt('hours')) > 0)) add('회당 수업 시간', q('[name=hours]'));
+  if (!txt('textbook')) add('교재명', q('[name=textbook]'));
+  if (!txt('goals')) add('수업 목표', q('[name=goals]'));
+  const rows = [...f.querySelectorAll('#dateChips .drow.on')];
+  if (!rows.length) add('강의 날짜(수업일을 하나 이상)', q('#dateChips'));
+  const empty = rows.filter((r) => !r.querySelector('[data-content]').value.trim());
+  if (empty.length) { add(`날짜별 수업 내용 ${empty.length}칸`, empty[0].querySelector('[data-content]')); empty.slice(1).forEach((r) => miss.push({ label: null, el: r.querySelector('[data-content]') })); }
+  return miss;
+}
+function saveCourse(fd, draft) {
+  return run(async () => {
+    const dates = [...document.querySelectorAll('#dateChips .chip.on')].map((b) => b.dataset.d);
+    const all = readContents(), contents = {};
+    dates.forEach((d) => { if (all[d]) contents[d] = all[d]; });
+    await api('as_save_course', { p_course: {
+      target: fd.get('target') || '', level: fd.get('level') || '', textbook: fd.get('textbook') || '', goals: fd.get('goals') || '',
+      hours: fd.get('hours') || null, contents,
+      id: fd.get('id') || null, term_id: termId, type_code: fd.get('type_code'), title: fd.get('title'), room: fd.get('room') || '',
+      capacity: fd.get('capacity') || null, teacher_id: fd.get('teacher_id') || null,
+      grades: fd.getAll('grades').map(Number), days: fd.getAll('days').map(Number), period: fd.get('period') || '', dates } });
+    closeModal(); await refresh();
+  }, draft ? '임시 저장했습니다. 나머지 항목도 채워서 [제출]해 주세요.' : '제출(저장)되었습니다.');
 }
 // 교시 안내에서 회당 시간을 어림: '8·9교시' → 2, '8교시' → 1
 const hoursOf = (period) => { const m = /^([\d·,~\s]+)교시/.exec(period || ''); return m ? (m[1].match(/\d+/g) || []).length || 2 : 2; };
@@ -1155,18 +1199,25 @@ const F = {
     if (fd.get('n1') !== fd.get('n2')) return toast('새 비밀번호가 서로 다릅니다.', true);
     return run(async () => { await api('as_change_password', { p_old: fd.get('old'), p_new: fd.get('n1') }); closeModal(); await refresh(); }, '비밀번호가 변경되었습니다.');
   },
-  course: (fd) => run(async () => {
-    const dates = [...document.querySelectorAll('#dateChips .chip.on')].map((b) => b.dataset.d);
-    const all = readContents(), contents = {};
-    dates.forEach((d) => { if (all[d]) contents[d] = all[d]; });
-    await api('as_save_course', { p_course: {
-      target: fd.get('target') || '', level: fd.get('level') || '', textbook: fd.get('textbook') || '', goals: fd.get('goals') || '',
-      hours: fd.get('hours') || null, contents,
-      id: fd.get('id') || null, term_id: termId, type_code: fd.get('type_code'), title: fd.get('title'), room: fd.get('room') || '',
-      capacity: fd.get('capacity') || null, teacher_id: fd.get('teacher_id') || null,
-      grades: fd.getAll('grades').map(Number), days: fd.getAll('days').map(Number), period: fd.get('period') || '', dates } });
-    closeModal(); await refresh();
-  }, '저장되었습니다.'),
+  course: (fd, submitter, f) => {
+    const draft = !!(submitter && submitter.name === 'draft');
+    f.querySelectorAll('.miss').forEach((el) => el.classList.remove('miss'));
+    const box = f.querySelector('#missBox'); box.classList.add('hidden');
+    if (!(fd.get('title') || '').trim()) { const t = f.querySelector('[name=title]'); t.classList.add('miss'); t.focus(); return toast('강좌명은 꼭 입력해 주세요.', true); }
+    if (!draft) {
+      const miss = courseMissing(f);
+      if (miss.length) {
+        miss.forEach((m) => m.el.classList.add('miss'));
+        const labels = miss.filter((m) => m.label).map((m) => m.label);
+        box.innerHTML = `<b>아직 입력하지 않은 항목이 ${labels.length}가지 있습니다.</b> ${labels.map((l) => `<span class="tag bad">${esc(l)}</span>`).join(' ')}<br>
+          <span class="sub">빨간 테두리로 표시된 곳을 채운 뒤 다시 [제출]을 눌러 주세요. 지금까지 쓴 것만 저장하려면 [임시 저장]을 누르세요.</span>`;
+        box.classList.remove('hidden');
+        if (miss[0].el.scrollIntoView) miss[0].el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        return toast(`입력하지 않은 항목이 있습니다: ${labels.slice(0, 3).join(', ')}${labels.length > 3 ? ' 외' : ''}`, true);
+      }
+    }
+    return saveCourse(fd, draft);
+  },
   settings: (fd) => run(async () => {
     await api('as_save_term', { p_term: {
       id: termId, title: fd.get('title'), start_date: fd.get('start_date') || null, end_date: fd.get('end_date') || null,
@@ -1223,9 +1274,10 @@ document.addEventListener('submit', (e) => {
   const f = e.target.closest('[data-f]');
   if (!f) return;
   e.preventDefault();
-  F[f.dataset.f](new FormData(f));
+  F[f.dataset.f](new FormData(f), e.submitter, f);
 });
 window.addEventListener('popstate', () => { if (token && S && S.term) A.terms(); });   // 뒤로 가기 → 목록
+document.addEventListener('input', (e) => { if (e.target.classList && e.target.classList.contains('miss') && e.target.value.trim()) e.target.classList.remove('miss'); });
 document.addEventListener('keydown', (e) => {
   if ((e.key === 'Enter' || e.key === ' ') && e.target.dataset && e.target.dataset.a === 'enter') A.enter();
 });
