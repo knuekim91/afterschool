@@ -246,6 +246,23 @@
   .sheet.plan th { background:#f1f1f1; white-space:nowrap; }
   .sheet.plan td.l { text-align:left; white-space:pre-line; }
   .sheet.plan td.c { height:20pt; }
+  .sheet.poster { padding:2pt; }
+  .sheet.poster .ph { display:flex; justify-content:space-between; align-items:center; gap:12pt; border-bottom:2.5pt solid #333; padding-bottom:6pt; margin-bottom:8pt; }
+  .sheet.poster h2 { font-size:22pt; text-align:left; margin:0 0 3pt; }
+  .sheet.poster .ph p { text-align:left; font-size:10.5pt; margin:0; }
+  .sheet.poster .qr { display:flex; align-items:center; gap:8pt; font-size:9pt; line-height:1.45; border:1pt solid #333; border-radius:6pt; padding:5pt 8pt; }
+  .sheet.poster .qr img { width:62pt; height:62pt; image-rendering:pixelated; }
+  .sheet.poster .qr b { font-size:11pt; } .sheet.poster .qr span { font-size:8pt; }
+  .sheet.poster .pw { display:flex; gap:10pt; align-items:flex-start; }
+  .sheet.poster .pl { flex:0 0 55%; } .sheet.poster .pr { flex:1; min-width:0; }
+  .sheet.poster h3 { font-size:11.5pt; margin:0 0 4pt; color:#000; }
+  .sheet.poster table { table-layout:fixed; font-size:8.5pt; }
+  .sheet.poster th { background:#eee; padding:3pt 2pt; }
+  .sheet.poster td { padding:2.2pt 2pt; line-height:1.2; word-break:keep-all; overflow-wrap:anywhere; }
+  .sheet.poster td.nm { font-weight:700; white-space:nowrap; font-size:9.5pt; }
+  .sheet.poster td.cs { font-size:8pt; } .sheet.poster td.l { text-align:left; font-weight:700; } .sheet.poster td.ty { font-size:8pt; }
+  .sheet.poster .pr table { font-size:8pt; }
+  .sheet.poster .ft { text-align:right; font-size:8pt; margin-top:5pt; }
   /* 화면에서 계획서 미리보기 */
   .pvbox { border:1px solid var(--line); border-radius:12px; padding:22px; background:#fff; overflow:auto; }
   .pvbox .sheet { max-width:720px; margin:0 auto; }
@@ -709,10 +726,43 @@ function classView() {
   const none = rows.filter((r) => r.slice(2).every((v) => !v)).length;
   return `<div class="card"><h2>반별 수강 현황</h2>
     <div class="row"><div style="flex:0 1 200px"><label>학급</label><select data-c="cls">${classOptions(view.cls)}</select></div>
-      <div style="flex:0 0 auto"><button data-a="printCls">인쇄</button> <button data-a="csvCls">CSV 내려받기</button></div></div>
+      <div style="flex:0 0 auto"><button data-a="posterPdf" data-v="${view.cls}">교실 게시용 PDF</button> <button data-a="printCls">인쇄</button> <button data-a="csvCls">CSV 내려받기</button></div></div>
     <p class="sub">학생 ${rows.length}명 · 미신청 ${none}명</p>
     <div class="scroll"><table><thead><tr>${head.map((h) => `<th>${esc(h)}</th>`).join('')}</tr></thead>
     <tbody>${rows.map((r) => `<tr>${r.map((v) => `<td>${esc(v)}</td>`).join('')}</tr>`).join('') || `<tr><td colspan="${head.length}">등록된 학생이 없습니다.</td></tr>`}</tbody></table></div></div>`;
+}
+
+/* 학급 게시용 한 장: 우리 반 수강 현황(요일별) + 전체 강좌 운영 시간 + 사이트 QR */
+const siteUrl = () => location.origin + location.pathname;
+async function qrDataUrl(text) {
+  if (!window.qrcode) await loadScript('https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js');
+  const qr = window.qrcode(0, 'M'); qr.addData(text); qr.make();
+  return qr.createDataURL(6, 0);                       // 칸 6px, 여백 없음(바깥에서 줌)
+}
+function posterHtml(key, qr) {
+  const [g, cl] = key.split('-').map(Number), studs = studentsOf(key);
+  const mine = new Map();                               // 학생 → 요일별 강좌명
+  R.enrollments.forEach((e) => { const c = courseById(e.course_id); if (!c || c.status === 'cancelled') return;
+    const m = mine.get(e.student_id) || {}; c.days.forEach((d) => { (m[d] = m[d] || []).push(c.title); }); mine.set(e.student_id, m); });
+  const cs = S.courses.filter((c) => c.status !== 'cancelled');
+  const none = studs.filter((s) => !mine.has(s.id)).length;
+  const srows = studs.map((s) => { const m = mine.get(s.id) || {};
+    return `<tr><td>${s.number}</td><td class="nm">${esc(s.name)}</td>${[1, 2, 3, 4, 5].map((d) => `<td class="cs">${(m[d] || []).map(esc).join('<br>')}</td>`).join('')}</tr>`; }).join('');
+  const crows = cs.map((c) => `<tr><td class="ty">${esc(typeOf(c.type_code).name)}</td><td class="l">${esc(c.title)}</td><td>${daysText(c)}</td>
+      <td>${esc((c.period || '').replace(/\s*\(/, '<br>(')).replace('&lt;br&gt;', '<br>')}</td><td>${esc(c.room)}</td><td>${esc(c.teacher_name)}</td></tr>`).join('');
+  return `<section class="sheet poster">
+    <div class="ph"><div><h2>${g}학년 ${cl}반 방과후학교 수강 현황</h2>
+        <p>${esc(S.term.title)} · ${periodText()} · 학생 ${studs.length}명 (수강 ${studs.length - none}명)</p></div>
+      <div class="qr">${qr ? `<img src="${qr}" alt="QR">` : ''}<div><b>자세한 내용은 QR로!</b><br>수강신청 · 내 시간표 · 나의 출석<br><span>${esc(siteUrl().replace(/^https?:\/\//, ''))}</span></div></div></div>
+    <div class="pw">
+      <div class="pl"><h3>우리 반 요일별 수강 강좌</h3>
+        <table><colgroup><col style="width:7%"><col style="width:13%"><col span="5" style="width:16%"></colgroup>
+          <thead><tr><th>번호</th><th>이름</th><th>월</th><th>화</th><th>수</th><th>목</th><th>금</th></tr></thead><tbody>${srows || '<tr><td colspan="7">학생이 없습니다.</td></tr>'}</tbody></table></div>
+      <div class="pr"><h3>전체 강좌 운영 시간</h3>
+        <table><colgroup><col style="width:13%"><col style="width:30%"><col style="width:10%"><col style="width:20%"><col style="width:15%"><col style="width:12%"></colgroup>
+          <thead><tr><th>유형</th><th>강좌명</th><th>요일</th><th>교시·시간</th><th>강의실</th><th>담당</th></tr></thead><tbody>${crows || '<tr><td colspan="6">강좌가 없습니다.</td></tr>'}</tbody></table>
+        <p class="ft">출력일 ${fmt(new Date())} · 결강·보강 등 변경 사항은 QR로 접속해 확인하세요.</p></div>
+    </div></section>`;
 }
 
 /* 관리자: 전체 강좌 출석부 현황 + 결강·보강 현황 */
@@ -775,7 +825,8 @@ function homeroomView() {
   const key = `${S.me.hr_grade}-${S.me.hr_class}`;
   const { head, rows } = classTable(key), studs = studentsOf(key);
   const none = rows.filter((r) => r.slice(2).every((v) => !v)).length;
-  return `<div class="card"><h2>우리 반 — ${S.me.hr_grade}학년 ${S.me.hr_class}반</h2>
+  return `<div class="card"><div class="row" style="justify-content:space-between"><h2>우리 반 — ${S.me.hr_grade}학년 ${S.me.hr_class}반</h2>
+      <div style="flex:0 0 auto"><button class="pri" data-a="posterPdf" data-v="${key}">교실 게시용 수강 현황 PDF</button> <button data-a="posterPrint" data-v="${key}">인쇄</button></div></div>
     <p class="sub">학생 ${rows.length}명 · 미신청 ${none}명 · 학생이 비밀번호를 잊어버리면 [비밀번호 초기화]를 눌러 주세요. 2026으로 돌아가고, 학생이 다시 로그인해 새 비밀번호를 정합니다.</p>
     <div class="scroll"><table><thead><tr>${head.map((h) => `<th>${esc(h)}</th>`).join('')}<th></th></tr></thead>
     <tbody>${rows.map((r, i) => `<tr>${r.map((v) => `<td>${esc(v)}</td>`).join('')}<td class="right nowrap">
@@ -1155,6 +1206,8 @@ const A = {
   },
   csvChanges: () => downloadCsv('결강보강현황.csv', [['강좌명', '교사', '결강일', '보강일', '사유', '처리자', '처리일'],
     ...(S.changes || []).map((x) => { const c = courseById(x.course_id) || {}; return [c.title, c.teacher_name, x.orig_date, x.new_date || '미정', x.reason, x.by || '', String(x.at || '').slice(0, 10)]; })]),
+  posterPdf: (el) => run(async () => { const key = el.dataset.v, [g, c] = key.split('-'); await savePdf(posterHtml(key, await qrDataUrl(siteUrl())), `수강현황_${g}학년${c}반_${S.term.title}.pdf`); }),
+  posterPrint: (el) => run(async () => { doPrint(posterHtml(el.dataset.v, await qrDataUrl(siteUrl()))); }),
   printPlan: (el) => doPrint(planHtml(courseById(+el.dataset.id))),
   printPlans: () => { const cs = S.courses.filter((c) => c.status !== 'cancelled'); if (!cs.length) return toast('인쇄할 강좌가 없습니다.', true); doPrint(cs.map(planHtml).join('')); },
   datesReset: () => fillDates(null, $('#modal [name=type_code]').value, null, null, true),
