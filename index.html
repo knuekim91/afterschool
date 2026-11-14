@@ -550,7 +550,7 @@ function peopleView() {
         <button class="small danger" data-a="stuDel" data-id="${s.id}" data-n="${esc(s.name)}">삭제</button></td></tr>`).join('')}</tbody></table></div>` : ''}
     </div>
     <div class="card"><h2>교사 명단</h2>
-    <p class="sub">한 줄에 한 명씩 이름을 입력하세요. 동명이인은 '김민수A', '김민수B'처럼 구분해 주세요. 초기 비밀번호는 2026 입니다.</p>
+    <p class="sub">한 줄에 한 명씩 이름을 입력하세요. 구글 시트의 교사 표를 여러 칸째 붙여 넣어도 첫 칸(이름)만 등록됩니다. 동명이인은 '김민수A', '김민수B'처럼 구분해 주세요. 초기 비밀번호는 2026 입니다.</p>
     <form data-f="impTea"><textarea name="text" style="min-height:80px" placeholder="김교사&#10;이교사"></textarea>
       <div class="mt"><button class="pri">교사 등록</button></div></form>
     <div class="scroll mt"><table><thead><tr><th>이름</th><th>권한</th><th></th></tr></thead><tbody>
@@ -671,7 +671,8 @@ const F = {
     return run(async () => { await api('as_import_students', { p_rows: rows }); await refresh(); }, `${rows.length}명을 등록했습니다.`);
   },
   impTea: (fd) => {
-    const rows = parseLines(fd.get('text')).map((name) => ({ name }));
+    // 엑셀·구글시트에서 여러 칸을 통째로 붙여도 첫 칸(이름)만 사용하고, 제목 줄은 건너뜀
+    const rows = parseLines(fd.get('text')).map((l) => l.split(/[\t,]/)[0].trim()).filter((n) => n && n !== '이름').map((name) => ({ name }));
     if (!rows.length) return toast('등록할 교사가 없습니다.', true);
     return run(async () => { await api('as_import_teachers', { p_rows: rows }); await refresh(); }, '교사를 등록했습니다.');
   },
