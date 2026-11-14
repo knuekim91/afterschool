@@ -115,6 +115,19 @@
   .hero { background:var(--grad); color:#fff; border-radius:18px; padding:22px 22px; margin-bottom:16px;
           box-shadow:0 8px 24px rgba(76,51,153,.22); }
   .hero h2 { font-size:24px; margin:0; } .hero p { margin:0; opacity:.92; }
+  .yearwrap { display:flex; gap:16px; align-items:flex-start; }
+  .yearwrap .terms { flex:1; min-width:0; }
+  .years { flex:0 0 132px; display:flex; flex-direction:column; gap:8px; position:sticky; top:12px; }
+  .years button { text-align:left; padding:10px 14px; border-radius:14px; background:#fff; border:1px solid var(--line); }
+  .years button span { display:block; font-size:22px; color:var(--main-d); line-height:1.2; }
+  .years button small { color:var(--sub); font-size:12px; }
+  .years button.on { background:var(--grad); border-color:transparent; box-shadow:0 6px 16px rgba(76,51,153,.25); }
+  .years button.on span, .years button.on small { color:#fff; }
+  @media (max-width:640px) {
+    .yearwrap { flex-direction:column; }
+    .years { flex:none; flex-direction:row; flex-wrap:wrap; position:static; width:100%; }
+    .years button { flex:1 1 110px; }
+  }
   .terms { display:grid; grid-template-columns:repeat(auto-fill,minmax(270px,1fr)); gap:14px; margin-bottom:16px; }
   .term { text-align:left; background:#fff; border:1px solid var(--line); border-radius:18px; padding:18px 18px 16px;
           box-shadow:0 3px 14px rgba(76,51,153,.07); position:relative; overflow:hidden; }
@@ -337,14 +350,32 @@ function loginView() {
     <button class="back" data-a="intro">← 첫 화면으로</button></div></div>`;
 }
 /* 방과후학교(운영 단위) 목록 — 학기·방학마다 하나씩 쌓입니다 */
+// 학년도: 이름 맨 앞의 연도(예: '2026년 겨울방학…' → 2026)를 쓰고, 없으면 시작일로 판단(1·2월은 전년도)
+function yearOf(t) {
+  const m = /^\s*(\d{4})/.exec(t.title || '');
+  if (m) return +m[1];
+  const d = t.start_date || (t.created_at || '').slice(0, 10);
+  if (!d) return new Date().getFullYear();
+  const y = +d.slice(0, 4), mo = +d.slice(5, 7);
+  return mo <= 2 ? y - 1 : y;
+}
+let yearSel = null;
+try { yearSel = +sessionStorage.getItem('as_year') || null; } catch (e) {}
 function termsView() {
   const me = S.me, adm = isAdmin();
+  const years = [...new Set(S.terms.map(yearOf))].sort((a, b) => a - b);
+  if (!years.includes(yearSel)) {                      // 기본값: 오늘이 속한 학년도, 없으면 가장 최근
+    const now = new Date(), cur = now.getMonth() + 1 <= 2 ? now.getFullYear() - 1 : now.getFullYear();
+    yearSel = years.includes(cur) ? cur : (years[years.length - 1] || null);
+  }
+  const shown = S.terms.filter((t) => yearOf(t) === yearSel);
   const period = (t) => (t.start_date && t.end_date ? `${t.start_date} ~ ${t.end_date}` : '운영 기간 미정');
   return `<div class="hero"><h2 class="disp">${esc(me.name)}${me.role === 'teacher' ? ' 선생님' : ' 학생'}, 환영합니다!</h2></div>
-    <div class="terms">${S.terms.map((t) => `<button class="term" data-a="term" data-id="${t.id}">
+    <div class="yearwrap"><nav class="years" aria-label="학년도 선택">${years.map((y) => `<button data-a="year" data-v="${y}" class="${y === yearSel ? 'on' : ''}"><span class="disp">${y}</span><small>학년도 · ${S.terms.filter((t) => yearOf(t) === y).length}개</small></button>`).join('')}</nav>
+    <div class="terms">${shown.map((t) => `<button class="term" data-a="term" data-id="${t.id}">
         <span class="tt disp">${esc(t.title)}</span><span class="sub">${period(t)}</span><br>
         ${t.enroll_open ? '<span class="tag ok">수강신청 진행 중</span>' : '<span class="tag">수강신청 닫힘</span>'}
-        <span class="go2">들어가기 →</span></button>`).join('') || '<div class="card">아직 만들어진 방과후학교가 없습니다.</div>'}</div>
+        <span class="go2">들어가기 →</span></button>`).join('') || '<div class="card">아직 만들어진 방과후학교가 없습니다.</div>'}</div></div>
     ${adm ? `<div class="card"><h2>새 방과후학교 만들기</h2>
       <p class="sub">학기나 방학이 바뀌면 여기서 새로 만드세요. 이전 방과후학교의 강좌·수강 기록은 지워지지 않고 목록에 계속 남습니다.</p>
       <form data-f="termNew"><div class="row">
@@ -703,6 +734,7 @@ const A = {
   tab: (el) => { tab = el.dataset.v; render(); },
   close: () => closeModal(),
   enter: () => { intro = false; render(); },
+  year: (el) => { yearSel = +el.dataset.v; try { sessionStorage.setItem('as_year', yearSel); } catch (e) {} render(); },
   intro: () => { intro = true; render(); },
   term: (el) => run(async () => { try { history.pushState({ term: +el.dataset.id }, ''); } catch (e) {} setTerm(+el.dataset.id); tab = 'my'; view = { cls: '', listFilter: '', detailId: null, addCls: '' }; await refresh(); window.scrollTo(0, 0); }),
   terms: () => run(async () => { if (!S || !S.term) return; setTerm(null); closeModal(); await refresh(); window.scrollTo(0, 0); }),
@@ -797,7 +829,9 @@ const F = {
     closeModal(); await refresh();
   }, '수업 날짜를 저장했습니다.'),
   termNew: (fd) => run(async () => {
-    await api('as_save_term', { p_term: { title: fd.get('title'), start_date: fd.get('start_date') || null, end_date: fd.get('end_date') || null } });
+    const t = { title: fd.get('title'), start_date: fd.get('start_date') || null, end_date: fd.get('end_date') || null };
+    await api('as_save_term', { p_term: t });
+    yearSel = yearOf(t); try { sessionStorage.setItem('as_year', yearSel); } catch (e) {}
     await refresh();
   }, '새 방과후학교를 만들었습니다.'),
   impStu: (fd) => {
