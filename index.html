@@ -290,7 +290,8 @@ const daysText = (t) => (t.days || []).map((d) => DAY[d]).join('·');     // 유
 const shownTypes = () => S.types.filter((t) => t.active !== false || S.courses.some((c) => c.type_code === t.code));
 const typeDatesOf = (code) => ((S.type_dates || []).find((x) => x.type_code === code) || {}).dates || [];
 const courseById = (id) => S.courses.find((c) => c.id === id);
-const isAdmin = () => S && S.me.is_admin;
+const isAdmin = () => S && S.me.is_admin;                                   // 관리자 또는 부관리자
+const isSuper = () => S && (S.me.is_super === undefined ? S.me.is_admin : S.me.is_super);   // 관리자(일정·설정 가능)
 
 function toast(msg, err) {
   const t = $('#toast');
@@ -391,7 +392,7 @@ function headerView() {
   const me = S.me;
   const who = me.role === 'student'
     ? `${me.grade}학년 ${me.class}반 ${me.number}번 ${esc(me.name)}`
-    : `${esc(me.name)} 선생님${me.is_admin ? ' (관리자)' : ''}`;
+    : `${esc(me.name)} 선생님${isSuper() ? ' (관리자)' : me.is_admin ? ' (부관리자)' : ''}`;
   return `<header class="top"><h1 class="disp" data-a="terms" title="방과후학교 목록으로" style="cursor:pointer">${BRAND}${S.term && !(me.must_change && forcePw()) ? `<small>${esc(S.term.title)}</small>` : ''}</h1>
     <div class="who"><span>${who}</span>
       ${S.term && !(me.must_change && forcePw()) ? '<button class="small" data-a="terms">방과후학교 목록</button>' : ''}
@@ -458,7 +459,7 @@ function termsView() {
         <span class="tt disp">${esc(t.title)}</span><span class="sub">${period(t)}</span><br>
         ${t.enroll_open ? '<span class="tag ok">수강신청 진행 중</span>' : '<span class="tag">수강신청 닫힘</span>'}
         <span class="go2">들어가기 →</span></button>`).join('') || '<div class="card">아직 만들어진 방과후학교가 없습니다.</div>'}</div></div>
-    ${adm ? `<div class="card"><h2>새 방과후학교 만들기</h2>
+    ${isSuper() ? `<div class="card"><h2>새 방과후학교 만들기</h2>
       <p class="sub">학기나 방학이 바뀌면 여기서 새로 만드세요. 이전 방과후학교의 강좌·수강 기록은 지워지지 않고 목록에 계속 남습니다.</p>
       <form data-f="termNew"><div class="row">
         <div style="flex:2 1 240px"><label>이름</label><input name="title" required placeholder="예: 2027학년도 1학기 방과후학교"></div>
@@ -537,7 +538,8 @@ function studentView() {
 function teacherView() {
   const tabs = [['my', '내 강좌'], ['all', '전체 강좌'], ['cls', '반별 수강 현황']];
   if (S.me.hr_grade) tabs.splice(1, 0, ['hr', `우리 반 (${S.me.hr_grade}-${S.me.hr_class})`]);
-  if (isAdmin()) tabs.push(['att', '출석부 전체'], ['plan', '강의계획서 전체'], ['people', '명단 관리'], ['set', '일정·설정']);
+  if (isAdmin()) tabs.push(['att', '출석부 전체'], ['plan', '강의계획서 전체'], ['people', '명단 관리']);
+  if (isSuper()) tabs.push(['set', '일정·설정']);
   if (!tabs.some((t) => t[0] === tab)) tab = 'my';
   const body = { my: myCoursesView, hr: homeroomView, att: attAllView, plan: planAllView, all: allCoursesView, cls: classView, people: peopleView, set: settingsView }[tab]();
   return `<div class="tabs">${tabs.map(([k, n]) => `<button data-a="tab" data-v="${k}" class="${tab === k ? 'on' : ''}">${n}</button>`).join('')}</div>${body}`;
@@ -917,13 +919,15 @@ function peopleView() {
         <button class="small danger" data-a="stuDel" data-id="${s.id}" data-n="${esc(s.name)}">삭제</button></td></tr>`).join('')}</tbody></table></div>` : ''}
     </div>
     <div class="card"><h2>교사 명단</h2>
+    <p class="sub"><b>부관리자</b>는 [일정·설정]과 관리자 지정을 뺀 나머지 관리자 메뉴(전체 강좌 조정, 출석부·강의계획서 전체, 명단 관리)를 쓸 수 있습니다.</p>
     <p class="sub">한 줄에 한 명씩 이름을 입력하세요. 구글 시트의 교사 표를 여러 칸째 붙여 넣어도 첫 칸(이름)만 등록됩니다. 동명이인은 '김민수A', '김민수B'처럼 구분해 주세요. 초기 비밀번호는 2026 입니다.</p>
     <form data-f="impTea"><textarea name="text" style="min-height:80px" placeholder="김교사&#10;이교사"></textarea>
       <div class="mt"><button class="pri">교사 등록</button></div></form>
     <div class="scroll mt"><table><thead><tr><th>이름</th><th>권한</th><th>담임 학급</th><th></th></tr></thead><tbody>
-      ${S.teachers.map((t) => `<tr><td>${esc(t.name)}</td><td>${t.is_admin ? '<span class="tag">관리자</span>' : '교사'}</td>
+      ${S.teachers.map((t) => `<tr><td>${esc(t.name)}</td><td>${t.is_admin ? '<span class="tag">관리자</span>' : t.is_manager ? '<span class="tag warn">부관리자</span>' : '교사'}</td>
         <td><select data-hr="${t.id}">${classOptions(t.hr_grade ? `${t.hr_grade}-${t.hr_class}` : '', '담임 아님')}</select></td><td class="right nowrap">
-        <button class="small" data-a="admin" data-id="${t.id}" data-v="${t.is_admin ? 0 : 1}">${t.is_admin ? '관리자 해제' : '관리자 지정'}</button>
+        ${isSuper() ? `<button class="small" data-a="admin" data-id="${t.id}" data-v="${t.is_admin ? 0 : 1}">${t.is_admin ? '관리자 해제' : '관리자 지정'}</button>
+          ${t.is_admin ? '' : `<button class="small" data-a="manager" data-id="${t.id}" data-v="${t.is_manager ? 0 : 1}">${t.is_manager ? '부관리자 해제' : '부관리자 지정'}</button>`}` : ''}
         <button class="small" data-a="pwReset" data-r="teacher" data-id="${t.id}" data-n="${esc(t.name)}">비밀번호 초기화</button>
         <button class="small danger" data-a="teaDel" data-id="${t.id}" data-n="${esc(t.name)}">삭제</button></td></tr>`).join('')}</tbody></table></div></div>`;
 }
@@ -1054,6 +1058,7 @@ const A = {
   pwReset: (el) => { if (confirm(`${el.dataset.n}의 비밀번호를 2026으로 초기화할까요?`)) run(() => api('as_reset_password', { p_role: el.dataset.r, p_id: +el.dataset.id }), '초기화되었습니다.'); },
   stuDel: (el) => { if (confirm(`${el.dataset.n} 학생을 삭제할까요? 수강 내역도 함께 삭제됩니다.`)) run(async () => { await api('as_delete_student', { p_id: +el.dataset.id }); await refresh(); }, '삭제되었습니다.'); },
   teaDel: (el) => { if (confirm(`${el.dataset.n} 선생님 계정을 삭제할까요?`)) run(async () => { await api('as_delete_teacher', { p_id: +el.dataset.id }); await refresh(); }, '삭제되었습니다.'); },
+  manager: (el) => run(async () => { await api('as_set_manager', { p_id: +el.dataset.id, p_on: el.dataset.v === '1' }); await refresh(); }, '변경되었습니다.'),
   admin: (el) => run(async () => { await api('as_set_admin', { p_id: +el.dataset.id, p_admin: el.dataset.v === '1' }); await refresh(); }, '변경되었습니다.'),
 };
 
