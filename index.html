@@ -151,13 +151,32 @@
   .pal { display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin:8px 0; }
   .pal button { border-radius:16px; padding:4px 12px; }
   .pal button.on { background:var(--main); color:#fff; border-color:var(--main); }
-  .att { font-size:13px; }
-  .att th, .att td { text-align:center; padding:3px 2px; border:1px solid var(--line); white-space:nowrap; }
-  .att th.d { cursor:pointer; } .att th.d:hover { background:var(--soft); }
-  .att td.nm { text-align:left; padding:3px 8px; position:sticky; left:0; background:#fff; }
-  .att td button { border:0; background:transparent; min-width:34px; height:26px; padding:0 3px; border-radius:6px; font-size:13px; }
-  .att td button:hover { background:var(--soft); }
-  .att td button.m-o { color:var(--ok); font-weight:700; } .att td button.m-x { color:var(--bad); font-weight:700; }
+  /* 수강생 카드 (2열) */
+  .ros { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:8px; }
+  .ros .st { display:flex; align-items:center; gap:10px; padding:7px 10px; border:1px solid var(--line); border-radius:11px; background:#faf8fe; }
+  .ros .st:hover { border-color:var(--main); background:var(--soft); }
+  .ros .st .hb { font-variant-numeric:tabular-nums; color:var(--main-d); font-weight:700; min-width:48px; }
+  .ros .st .nm { flex:1; min-width:0; font-weight:600; }
+  .ros .st .kd { font-size:12px; color:var(--sub); white-space:nowrap; }
+  @media (max-width:640px) { .ros { grid-template-columns:1fr; } }
+  /* 출석 체크 표: 머리줄과 학번·이름 칸 고정 */
+  .attwrap { max-height:72vh; overflow:auto; border:1px solid var(--line); border-radius:12px; background:#fff; }
+  .att { font-size:13px; border-collapse:separate; border-spacing:0; width:max-content; min-width:100%; }
+  .att th, .att td { text-align:center; padding:3px; border-right:1px solid var(--line); border-bottom:1px solid var(--line); white-space:nowrap; background:#fff; }
+  .att thead th { position:sticky; top:0; z-index:2; background:#f3eefc; color:var(--main-d); font-size:12px; height:38px; line-height:1.2; }
+  .att thead tr.r2 th { top:38px; height:22px; font-weight:500; }
+  .att th.d { cursor:pointer; } .att th.d:hover { background:#e5dbfa; }
+  .att .c1, .att .c2 { position:sticky; z-index:1; background:#faf8fe; }
+  .att .c1 { left:0; width:64px; min-width:64px; font-variant-numeric:tabular-nums; color:var(--main-d); font-weight:700; }
+  .att .c2 { left:64px; width:86px; min-width:86px; text-align:left; padding-left:8px; font-weight:600; box-shadow:3px 0 5px -3px rgba(76,51,153,.25); }
+  .att thead .c1, .att thead .c2 { z-index:3; background:#f3eefc; text-align:center; padding-left:3px; }
+  .att tbody tr:hover td { background:#fbf9ff; } .att tbody tr:hover .c1, .att tbody tr:hover .c2 { background:var(--soft); }
+  .att td button, .att td .ro { display:inline-block; min-width:42px; height:27px; line-height:25px; padding:0 4px; border:1px solid var(--line); border-radius:8px;
+      background:#fff; font-size:12px; color:var(--ink); }
+  .att td button:hover { border-color:var(--main); box-shadow:0 0 0 2px rgba(106,75,196,.15); }
+  .att .m-o { background:#e9f7ef; border-color:#b5dfc6; color:var(--ok); font-weight:700; font-size:14px; }
+  .att .m-x { background:#fdecee; border-color:#f3bcc3; color:var(--bad); font-weight:700; font-size:14px; }
+  .att .m-t { background:#f1ebff; border-color:#d6c8f5; color:var(--main-d); font-size:11px; }
   .chips { display:flex; flex-wrap:wrap; gap:4px; max-height:170px; overflow:auto; padding:6px;
            border:1px solid var(--line); border-radius:9px; }
   .chip { font-size:12px; padding:2px 7px; border-radius:6px; }
@@ -588,10 +607,8 @@ function detailView(c) {
     <p class="sub">${courseMeta(c)} · 수업 ${c.dates.length}회</p>
     <div><button data-a="printPlan" data-id="${c.id}">강의계획서 인쇄</button> <button data-a="printAtt" data-id="${c.id}">출석부 인쇄</button> <button data-a="csvRoster" data-id="${c.id}">명단 CSV</button></div>
     <h3>수강생 (${ros.length}명)</h3>
-    <div class="scroll"><table><thead><tr><th>학번</th><th>이름</th><th>구분</th><th></th></tr></thead><tbody>
-    ${ros.map((s) => `<tr><td>${hakbun(s)}</td><td>${esc(s.name)}</td><td>${s.assigned ? '교사 지정' : '학생 신청'}</td>
-      <td class="right">${mine ? `<button class="small danger" data-a="unassign" data-id="${c.id}" data-s="${s.id}">제외</button>` : ''}</td></tr>`).join('')
-      || '<tr><td colspan="4">수강생이 없습니다.</td></tr>'}</tbody></table></div>
+    ${ros.length ? `<div class="ros">${ros.map((s) => `<div class="st"><span class="hb">${hakbun(s)}</span><span class="nm">${esc(s.name)}</span><span class="kd">${s.assigned ? '교사 지정' : '학생 신청'}</span>
+      ${mine ? `<button class="small danger" data-a="unassign" data-id="${c.id}" data-s="${s.id}">제외</button>` : ''}</div>`).join('')}</div>` : '<p class="sub">수강생이 없습니다.</p>'}
     <h3>출석 체크</h3>${attGrid(c, mine)}
     ${mine && c.status !== 'cancelled' ? `<h3>학생 지정${t.assign_only ? '' : ' (필요한 경우에만)'}</h3>
       <div style="max-width:220px"><select data-c="addCls">${classOptions(view.addCls, '학급 선택')}</select></div>
@@ -616,7 +633,7 @@ function attendanceHtml(c) {
 
 /* 출석 체크 */
 const slotsOf = (c) => Math.max(1, Math.round(c.hours ?? hoursOf(c.period)));
-const markCls = (m) => (m === '◯' ? 'm-o' : m === '/' ? 'm-x' : '');
+const markCls = (m) => (m === '◯' ? 'm-o' : m === '/' ? 'm-x' : m ? 'm-t' : '');
 function attGrid(c, editable) {
   const ros = rosterOf(c.id), ns = slotsOf(c);
   if (!c.dates.length) return '<p class="sub">강의 날짜가 없습니다. 강좌 [수정]에서 날짜를 먼저 넣어 주세요.</p>';
@@ -626,11 +643,11 @@ function attGrid(c, editable) {
       <button type="button" data-a="pal" data-v="" class="${view.mark === '' ? 'on' : ''}">지우기</button>
       <button type="button" data-a="palCustom">직접 입력…</button>
       <span class="sub">칸을 누르면 고른 표시가 들어갑니다. 날짜(맨 윗줄)를 누르면 그날 빈칸이 모두 채워집니다.</span></div>` : ''}
-    <div class="scroll" style="max-height:420px"><table class="att"><thead>
-      <tr><th rowspan="${ns > 1 ? 2 : 1}">학번</th><th rowspan="${ns > 1 ? 2 : 1}">이름</th>${c.dates.map((d) => `<th class="${editable ? 'd' : ''}" colspan="${ns}" ${editable ? `data-a="attCol" data-id="${c.id}" data-d="${d}" title="이 날 빈칸 모두 채우기"` : ''}>${md(d)}<br>${dow(d)}</th>`).join('')}</tr>
-      ${ns > 1 ? `<tr>${cols.map(([, i]) => `<th>${i}</th>`).join('')}</tr>` : ''}</thead>
-      <tbody>${ros.map((s) => `<tr><td>${hakbun(s)}</td><td class="nm">${esc(s.name)}</td>${cols.map(([d, i]) => { const m = ATT.get(attKey(c.id, s.id, d, i)) || '';
-        return `<td>${editable ? `<button type="button" class="${markCls(m)}" data-a="att" data-id="${c.id}" data-s="${s.id}" data-d="${d}" data-i="${i}">${esc(m)}</button>` : esc(m)}</td>`; }).join('')}</tr>`).join('')}</tbody></table></div>`;
+    <div class="attwrap"><table class="att"><thead>
+      <tr><th class="c1" rowspan="${ns > 1 ? 2 : 1}">학번</th><th class="c2" rowspan="${ns > 1 ? 2 : 1}">이름</th>${c.dates.map((d) => `<th class="${editable ? 'd' : ''}" colspan="${ns}" ${editable ? `data-a="attCol" data-id="${c.id}" data-d="${d}" title="이 날 빈칸 모두 채우기"` : ''}>${md(d)}<br>${dow(d)}</th>`).join('')}</tr>
+      ${ns > 1 ? `<tr class="r2">${cols.map(([, i]) => `<th>${i}</th>`).join('')}</tr>` : ''}</thead>
+      <tbody>${ros.map((s) => `<tr><td class="c1">${hakbun(s)}</td><td class="c2">${esc(s.name)}</td>${cols.map(([d, i]) => { const m = ATT.get(attKey(c.id, s.id, d, i)) || '';
+        return `<td>${editable ? `<button type="button" class="${markCls(m)}" data-a="att" data-id="${c.id}" data-s="${s.id}" data-d="${d}" data-i="${i}">${esc(m)}</button>` : `<span class="ro ${markCls(m)}">${esc(m)}</span>`}</td>`; }).join('')}</tr>`).join('')}</tbody></table></div>`;
 }
 async function saveAtt(courseId, items) {       // 화면을 먼저 바꾸고 저장, 실패하면 되돌림
   const before = items.map((it) => [attKey(courseId, it.s, it.d, it.slot), ATT.get(attKey(courseId, it.s, it.d, it.slot))]);
