@@ -185,6 +185,25 @@
   .att .m-o { background:#e9f7ef; border-color:#b5dfc6; color:var(--ok); font-weight:700; font-size:14px; }
   .att .m-x { background:#fdecee; border-color:#f3bcc3; color:var(--bad); font-weight:700; font-size:14px; }
   .att .m-t { background:#f1ebff; border-color:#d6c8f5; color:var(--main-d); font-size:11px; }
+  /* 학생: 진행 중인 방과후학교 요약 + 나의 출석 */
+  .homebox { border:2px solid var(--main); border-radius:18px; background:#fff; padding:18px 18px 8px; margin:4px 0 16px; box-shadow:0 6px 20px rgba(76,51,153,.12); }
+  .homebox .hh { display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; padding-bottom:10px; border-bottom:1px dashed var(--line); }
+  .homebox .tt { font-size:21px; color:var(--main-d); margin:0 6px; }
+  .homebox .inner { border-top:1px dashed var(--line); margin-top:10px; padding-top:4px; }
+  .homebox .inner h2 { font-size:15px; margin:14px 0 6px; color:var(--main-d); }
+  .mya { border:1px solid var(--line); border-radius:13px; padding:11px 12px; margin:10px 0; background:#fcfbff; }
+  .mya .hd { display:flex; flex-wrap:wrap; gap:6px 10px; align-items:center; }
+  .mya .hd .t { font-weight:700; } .mya .hd .rt { margin-left:auto; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .mya .bar { height:7px; border-radius:6px; background:#ece6f7; margin:8px 0 2px; overflow:hidden; }
+  .mya .bar i { display:block; height:100%; border-radius:6px; background:linear-gradient(90deg,#6a4bc4,#ff6f91); }
+  .ads { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+  .ad { min-width:62px; text-align:center; border:1px solid var(--line); border-radius:10px; padding:4px 6px; background:#fff; line-height:1.25; }
+  .ad small { display:block; font-size:11px; color:var(--sub); } .ad b { font-size:14px; font-weight:700; }
+  .ad.m-o { background:#e9f7ef; border-color:#b5dfc6; } .ad.m-o b { color:var(--ok); }
+  .ad.m-x { background:#fdecee; border-color:#f3bcc3; } .ad.m-x b { color:var(--bad); }
+  .ad.m-t { background:#f1ebff; border-color:#d6c8f5; } .ad.m-t b { color:var(--main-d); font-size:12px; }
+  .ad.kx { background:#eeeaf3; } .ad.kx b, .ad.ft b, .ad.no b { color:#a59fb8; font-size:12px; font-weight:500; }
+  .ad.ft { border-style:dashed; }
   .chips { display:flex; flex-wrap:wrap; gap:4px; max-height:170px; overflow:auto; padding:6px;
            border:1px solid var(--line); border-radius:9px; }
   .chip { font-size:12px; padding:2px 7px; border-radius:6px; }
@@ -269,6 +288,7 @@ const forcePw = () => (S && typeof S.force_pw === 'boolean' ? S.force_pw : cfg.F
 let ATT = new Map();   // 출석 표시: '강좌|학생|날짜|교시' → 표시
 const attKey = (c, s, d, slot) => `${c}|${s}|${d}|${slot}`;
 const MARKS = ['◯', '/', '과제', '병원', '학원', '수강포기'];
+let HOME = null;       // (학생) 지금 진행 중인 방과후학교의 상태 — 목록 화면 아래에 내 수강·출석을 보여 줌
 let S = null;          // 서버 상태
 let R = null;          // 교사용 명단
 let tab = 'my';
@@ -320,13 +340,28 @@ function setTerm(id) {
   termId = id || null;
   try { termId ? sessionStorage.setItem('as_term', termId) : sessionStorage.removeItem('as_term'); } catch (e) {}
 }
+function normState(X) {                     // 이전 구조와도 호환되도록 빈 값 채우기
+  X.type_dates = X.type_dates || []; X.changes = X.changes || []; X.my_att = X.my_att || [];
+  X.courses.forEach((c) => { c.days = c.days || (X.types.find((t) => t.code === c.type_code) || {}).days || []; c.period = c.period || ''; c.contents = c.contents || {}; });
+  return X;
+}
+// 오늘 날짜가 운영 기간 안에 있는 방과후학교 (여럿이면 가장 늦게 시작한 것)
+function currentTerm(terms) {
+  const today = fmt(new Date());
+  return terms.filter((t) => t.start_date && t.end_date && t.start_date <= today && today <= t.end_date)
+              .sort((x, y) => (x.start_date < y.start_date ? 1 : -1))[0] || null;
+}
 async function refresh() {
   S = await api('as_get_state', { p_term: termId });
   if (termId && !S.term) setTerm(null);
-  S.type_dates = S.type_dates || []; S.changes = S.changes || [];
-  S.courses.forEach((c) => { c.days = c.days || typeOf(c.type_code).days || []; c.period = c.period || ''; c.contents = c.contents || {}; });   // 이전 구조와도 호환
+  normState(S);
   R = S.me.role === 'teacher' && S.term ? await api('as_get_roster', { p_term: termId }) : null;
   ATT = new Map(((R && R.attendance) || []).map((x) => [attKey(x[0], x[1], x[2], x[3]), x[4]]));
+  HOME = null;                                   // 학생이 목록 화면에 있을 때: 진행 중인 방과후학교의 내 수강 내역
+  if (S.me.role === 'student' && !S.term) {
+    const cur = currentTerm(S.terms);
+    if (cur) { try { HOME = normState(await api('as_get_state', { p_term: cur.id })); } catch (e) { HOME = null; } }
+  }
   document.title = S.term ? S.term.title : BRAND;
   render();
 }
@@ -459,6 +494,7 @@ function termsView() {
         <span class="tt disp">${esc(t.title)}</span><span class="sub">${period(t)}</span><br>
         ${t.enroll_open ? '<span class="tag ok">수강신청 진행 중</span>' : '<span class="tag">수강신청 닫힘</span>'}
         <span class="go2">들어가기 →</span></button>`).join('') || '<div class="card">아직 만들어진 방과후학교가 없습니다.</div>'}</div></div>
+    ${me.role === 'student' ? homeView() : ''}
     ${isSuper() ? `<div class="card"><h2>새 방과후학교 만들기</h2>
       <p class="sub">학기나 방학이 바뀌면 여기서 새로 만드세요. 이전 방과후학교의 강좌·수강 기록은 지워지지 않고 목록에 계속 남습니다.</p>
       <form data-f="termNew"><div class="row">
@@ -498,6 +534,51 @@ function timetable(myCourses) {
   return `<div class="scroll"><table class="week"><thead><tr>${[1, 2, 3, 4, 5].map((d) => `<th>${DAY[d]}</th>`).join('')}</tr></thead>
     <tbody><tr>${[1, 2, 3, 4, 5].map(cell).join('')}</tr></tbody></table></div>`;
 }
+// 학생: 내 수강 강좌 목록(상태 X 기준)
+const myCoursesOf = (X) => { const ids = new Set(X.my.map((m) => m.course_id)); return X.courses.filter((c) => ids.has(c.id) && c.status !== 'cancelled'); };
+/* 학생: 나의 출석 (보기 전용) */
+function myAttView(X) {
+  const cs = myCoursesOf(X);
+  if (!cs.length) return '';
+  const att = new Map(X.my_att.map((x) => [`${x[0]}|${x[1]}|${x[2]}`, x[3]]));
+  const today = fmt(new Date());
+  const blocks = cs.map((c) => {
+    const ns = slotsOf(c), ch = X.changes.filter((x) => x.course_id === c.id);
+    const canc = new Map(ch.map((x) => [x.orig_date, x])), mk = new Set(ch.filter((x) => x.new_date).map((x) => x.new_date));
+    const days = [...new Set([...c.dates, ...ch.map((x) => x.orig_date)])].sort();
+    let o = 0, x = 0, etc = 0;
+    const chips = days.map((d) => {
+      if (!c.dates.includes(d) && canc.has(d)) return `<div class="ad kx"><small>${md(d)}(${dow(d)})</small><b>결강</b></div>`;
+      const ms = Array.from({ length: ns }, (_, i) => att.get(`${c.id}|${d}|${i + 1}`) || '');
+      ms.forEach((m) => { if (m === '◯') o++; else if (m === '/') x++; else if (m) etc++; });
+      const all = ms.filter(Boolean), same = all.length && all.every((m) => m === all[0]) && all.length === ns;
+      const cls = !all.length ? (d > today ? 'ft' : 'no') : same ? markCls(all[0]) : all.includes('/') ? 'm-x' : 'm-t';
+      const txt = !all.length ? (d > today ? '예정' : '미입력') : same ? all[0] : ms.map((m) => m || '·').join(' ');
+      return `<div class="ad ${cls}"><small>${md(d)}(${dow(d)})${mk.has(d) ? ' 보강' : ''}</small><b>${esc(txt)}</b></div>`;
+    }).join('');
+    const rate = o + x ? Math.round((o / (o + x)) * 100) : null;
+    return `<div class="mya"><div class="hd"><span class="t">${esc(c.title)}</span>
+        <span class="sub">${esc(typeOf(c.type_code).name)} · ${daysText(c)} · ${esc(c.teacher_name)} 선생님</span>
+        <span class="rt">${rate === null ? '<span class="tag">기록 없음</span>' : `<span class="tag ${rate >= 80 ? 'ok' : rate >= 50 ? 'warn' : 'bad'}">출석률 ${rate}%</span>`}
+          <span class="sub">출석 ${o} · 결석 ${x}${etc ? ` · 기타 ${etc}` : ''}${ns > 1 ? ' (교시 기준)' : ''}</span></span></div>
+      ${rate === null ? '' : `<div class="bar"><i style="width:${rate}%"></i></div>`}
+      <div class="ads">${chips || '<span class="sub">수업 날짜가 아직 없습니다.</span>'}</div></div>`;
+  }).join('');
+  return `<div class="card"><h2>나의 출석</h2>
+    <p class="sub">선생님이 입력한 출석 기록입니다. ◯ 출석 · / 결석 · 그 밖의 표시(과제, 병원 등)는 선생님이 적은 그대로 보입니다.</p>${blocks}</div>`;
+}
+/* 학생 목록 화면: 지금 진행 중인 방과후학교의 내 수강 내역 */
+function homeView() {
+  if (!HOME || !HOME.term) return '';
+  const cs = myCoursesOf(HOME);
+  return `<div class="homebox"><div class="hh"><div><span class="tag ok">지금 진행 중</span> <span class="disp tt">${esc(HOME.term.title)}</span>
+        <span class="sub">${HOME.term.start_date} ~ ${HOME.term.end_date}</span></div>
+      <button class="pri" data-a="term" data-id="${HOME.term.id}">들어가기 →</button></div>
+    <h3>내 수강 강좌</h3>
+    ${cs.length ? timetable(cs) + cs.map((c) => `<div class="course"><div><div class="t">${esc(c.title)}</div><div class="sub">${courseMeta(c)}</div></div></div>`).join('')
+                : '<p class="sub">이 방과후학교에서 수강 중인 강좌가 없습니다.</p>'}
+    ${myAttView(HOME).replace('<div class="card">', '<div class="inner">')}</div>`;
+}
 function studentView() {
   const me = S.me, open = S.term.enroll_open;
   const mine = new Map(S.my.map((m) => [m.course_id, m]));
@@ -523,6 +604,7 @@ function studentView() {
     <p class="sub">운영 기간: ${periodText()} · 수강신청: ${open ? '<b>진행 중</b>' : '마감(신청 기간 아님)'}</p>
     ${timetable(myCourses)}
     ${myCourses.length ? myCourses.map((c) => item(c, true)).join('') : '<p>아직 신청한 강좌가 없습니다.</p>'}</div>`;
+  html += myAttView(S);
   html += `<div class="card"><h2>개설 강좌 (${me.grade}학년)</h2>
     <p class="sub">같은 요일에 열리는 강좌는 하나만 신청할 수 있습니다.</p>`;
   for (const t of shownTypes()) {
