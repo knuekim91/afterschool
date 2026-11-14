@@ -215,6 +215,7 @@
   .sheet.attp table { table-layout:fixed; }
   .sheet.attp th, .sheet.attp td { overflow:hidden; word-break:keep-all; overflow-wrap:anywhere; line-height:1.15; }
   .sheet.attp td.cell { font-size:8pt; padding:2pt 1pt; }
+  .sheet.attp td.cell.lg { font-size:6.6pt; letter-spacing:-0.6px; padding:2pt 0; white-space:nowrap; }
   .sheet.plan h2 { font-size:17pt; border:2px solid #333; padding:8pt; margin-bottom:12pt; }
   .sheet.plan table { font-size:10.5pt; margin-bottom:-1px; }
   .sheet.plan th, .sheet.plan td { padding:5pt 6pt; }
@@ -705,7 +706,7 @@ function detailView(c) {
   return `<div class="row" style="justify-content:space-between"><h2>${esc(c.title)} ${statusTag(c)}</h2>
       <div style="flex:0 0 auto"><button data-a="close">닫기</button></div></div>
     <p class="sub">${courseMeta(c)} · 수업 ${c.dates.length}회</p>
-    <div><button data-a="printPlan" data-id="${c.id}">강의계획서 인쇄</button> <button data-a="printAtt" data-id="${c.id}">출석부 인쇄</button> <button data-a="csvRoster" data-id="${c.id}">명단 CSV</button></div>
+    <div><button data-a="printPlan" data-id="${c.id}">강의계획서 인쇄</button> <button data-a="printAtt" data-id="${c.id}">출석부 인쇄</button> <button data-a="pdfAtt" data-id="${c.id}">출석부 PDF</button> <button data-a="csvRoster" data-id="${c.id}">명단 CSV</button></div>
     <h3>수강생 (${ros.length}명)</h3>
     ${ros.length ? `<div class="ros">${ros.map((s) => `<div class="st"><span class="hb">${hakbun(s)}</span><span class="nm">${esc(s.name)}</span><span class="kd">${s.assigned ? '교사 지정' : '학생 신청'}</span>
       ${mine ? `<button class="small danger" data-a="unassign" data-id="${c.id}" data-s="${s.id}">제외</button>` : ''}</div>`).join('')}</div>` : '<p class="sub">수강생이 없습니다.</p>'}
@@ -726,7 +727,7 @@ function attendanceHtml(c) {
       <p>${esc(S.term.title)} · ${esc(t.name)}(${daysText(c)}${c.period ? ' ' + esc(c.period) : ''}) · 담당 ${esc(c.teacher_name)} · ${esc(c.room)} · ${periodText()} · ${i + 1}/${chunks.length}쪽</p>
       <table><colgroup><col style="width:4.5%"><col style="width:7.5%"><col style="width:12%">${cols.map(() => `<col style="width:${76 / PER}%">`).join('')}</colgroup>
         <thead><tr><th>연번</th><th>학번</th><th>이름</th>${cols.map((x) => `<th>${x ? md(x[0]) + '<br>' + dow(x[0]) + (ns > 1 ? x[1] : '') + (x[2] === 'x' ? '<br>결강' : x[2] === 'm' ? '<br>보강' : '') : '&nbsp;'}</th>`).join('')}</tr></thead>
-      <tbody>${ros.map((s, k) => `<tr><td>${k + 1}</td><td>${hakbun(s)}</td><td class="nm">${esc(s.name)}</td>${cols.map((x) => `<td class="cell">${!x ? '' : x[2] === 'x' ? '–' : esc(ATT.get(attKey(c.id, s.id, x[0], x[1])) || '')}</td>`).join('')}</tr>`).join('')}
+      <tbody>${ros.map((s, k) => `<tr><td>${k + 1}</td><td>${hakbun(s)}</td><td class="nm">${esc(s.name)}</td>${cols.map((x) => { const m = !x ? '' : x[2] === 'x' ? '–' : (ATT.get(attKey(c.id, s.id, x[0], x[1])) || ''); return `<td class="cell${m.length >= 4 ? ' lg' : ''}">${esc(m)}</td>`; }).join('')}</tr>`).join('')}
       ${[1, 2].map(() => `<tr><td>&nbsp;</td><td></td><td></td>${cols.map(() => '<td class="cell"></td>').join('')}</tr>`).join('')}</tbody></table></section>`;
   }).join('');
 }
