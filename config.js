@@ -3,5 +3,7 @@
 // (anon public 키는 웹에 공개되어도 되는 키입니다. service_role 키는 절대 넣지 마세요.)
 window.AS_CONFIG = {
   SUPABASE_URL: "https://nensyggbmtcsdtrpxmqh.supabase.co",        // 예: "https://abcdefgh.supabase.co"
-  SUPABASE_ANON_KEY: "sb_publishable_14Wq_YuZZE6xoenPtUdkUA_IQL0LlJB"    // 예: "eyJhbGciOi..."
+  SUPABASE_ANON_KEY: "sb_publishable_14Wq_YuZZE6xoenPtUdkUA_IQL0LlJB",    // 예: "eyJhbGciOi..."
+  // 첫 로그인 때 비밀번호 변경 강제 여부. 시험 기간에는 false, 실제 운영을 시작할 때 true 로 바꾸세요.
+  FORCE_PW_CHANGE: false
 };
