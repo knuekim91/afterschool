@@ -847,18 +847,36 @@ function letterView() {
 }
 function letterHtml(L) {
   const lines = (t) => (t || '').split(/\r?\n/).map((x) => x.trim()).filter(Boolean);
-  const list = (t) => `<ol>${lines(t).map((x) => `<li>${esc(x)}</li>`).join('')}</ol>`;
-  return `<section class="sheet" style="font-size:11pt;line-height:1.5"><h2 style="text-align:center;font-size:17pt">${esc(L.title)}</h2>
-    <p>${esc(L.greet)}</p>
-    <table style="width:100%;border-collapse:collapse;margin:8pt 0" border="1" cellpadding="4">
+  const list = (t) => `<ol style="margin:4pt 0 8pt 18pt;padding:0">${lines(t).map((x) => `<li style="margin-bottom:3pt">${esc(x)}</li>`).join('')}</ol>`;
+  const head = `<h2 style="text-align:center;font-size:17pt;margin:0 0 6pt">${esc(L.title)}</h2>`;
+  // 앞면: 안내 문구와 운영 개요
+  const front = `<section class="sheet plan" style="font-size:10.5pt;line-height:1.5">${head}
+    <p style="margin:0 0 8pt;white-space:pre-line">${esc(L.greet)}</p>
+    <table style="width:100%;border-collapse:collapse;margin:6pt 0" border="1" cellpadding="5">
       <tr><th style="width:24%;background:#f2f2f2">운영 기간</th><td>${esc(L.period)}</td></tr>
       <tr><th style="background:#f2f2f2">수강신청 기간</th><td>${esc(L.enroll)}</td></tr>
       <tr><th style="background:#f2f2f2">수강료</th><td>${esc(L.fee)}</td></tr></table>
-    <p><b>■ 수강신청 방법</b></p>${list(L.how)}
-    <p><b>■ 유의사항</b></p>${list(L.notes)}
-    <p style="margin-top:14pt">${esc(L.consent)}</p>
-    <p style="text-align:right;margin-top:10pt">${esc(L.date)}<br>${esc(L.school)}</p>
-    <hr><p style="text-align:center">참가 동의서 (학생 제출)<br>${esc(S.term.title)} 참가에 동의합니다. &nbsp; 학년 ____ 반 ____ 번 이름 ____________ &nbsp; 보호자 서명 ____________</p></section>`;
+    <p style="margin:10pt 0 2pt"><b>■ 수강신청 방법</b></p>${list(L.how)}
+    ${lines(L.notes).length ? `<p style="margin:10pt 0 2pt"><b>■ 유의사항</b></p>${list(L.notes)}` : ''}
+    <p style="text-align:right;margin-top:16pt">${esc(L.date)}<br>${esc(L.school)}</p></section>`;
+  // 뒷면: 개설 강좌 자동 표 + 참가 동의서
+  const open = S.courses.filter((c) => c.status !== 'cancelled')
+    .sort((a, b) => ((typeOf(a.type_code).sort || 0) - (typeOf(b.type_code).sort || 0)) || a.title.localeCompare(b.title));
+  const rows = open.map((c) => `<tr><td>${esc(typeOf(c.type_code).name)}</td><td>${esc(c.title)}</td>
+      <td style="text-align:center">${c.grades.join(',')}</td><td>${esc(daysText(c))}${c.period ? '<br>' + esc(c.period) : ''}</td>
+      <td>${esc(c.room || '')}</td><td>${esc(c.teacher_name || '')}</td></tr>`).join('');
+  const back = `<section class="sheet plan" style="font-size:10pt;line-height:1.45">${head}
+    <p style="margin:0 0 6pt"><b>■ 개설 강좌</b> <span style="color:#555">(${esc(S.term.title)} · 누리집에 등록된 강좌 자동 반영)</span></p>
+    ${open.length ? `<table style="width:100%;border-collapse:collapse" border="1" cellpadding="4">
+      <thead><tr style="background:#f2f2f2"><th>구분</th><th>강좌명</th><th>학년</th><th>요일·시간</th><th>장소</th><th>지도교사</th></tr></thead>
+      <tbody>${rows}</tbody></table>` : '<p>개설된 강좌가 없습니다.</p>'}
+    <div style="margin-top:22pt;border-top:1px dashed #000;padding-top:12pt">
+      <p style="text-align:center;font-size:13pt;margin:0 0 8pt"><b>참가 동의서</b></p>
+      <p style="margin:0 0 8pt">${esc(L.consent)}</p>
+      <p style="margin:14pt 0">(&nbsp;&nbsp;&nbsp;&nbsp;)학년 (&nbsp;&nbsp;&nbsp;&nbsp;)반 (&nbsp;&nbsp;&nbsp;&nbsp;)번 &nbsp; 학생: ____________________</p>
+      <p style="margin:14pt 0">보호자: ____________________ (서명 또는 인)</p>
+    </div></section>`;
+  return front + back;
 }
 function currentLetter() {
   const f = document.querySelector('form[data-f="letter"]');
