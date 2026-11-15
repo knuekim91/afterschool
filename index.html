@@ -40,6 +40,11 @@
   .intro h1 .ch { display:inline-block; opacity:0; transform:translateY(.6em) rotate(8deg) scale(.6);
            animation:pop .75s cubic-bezier(.2,1.5,.4,1) forwards, sway 3.2s ease-in-out infinite; }
   @keyframes pop { to { opacity:1; transform:none; } }
+  /* 첫 화면 가장자리를 도는 문구: 왼쪽 아래 → 왼쪽 위 → 오른쪽 위 → (대각선) 왼쪽 아래 */
+  .intro .loop { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; opacity:0;
+           animation:rise 1.2s 1.6s ease-out forwards; }
+  .intro .loop path { fill:none; stroke:rgba(255,255,255,.1); stroke-linecap:round; stroke-linejoin:round; }
+  .intro .loop text { fill:rgba(255,255,255,.62); letter-spacing:.06em; }
   @keyframes sway { 0%,100% { translate:0 0; } 50% { translate:0 -7px; } }
   @keyframes rise { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:none; } }
   .intro .tag2 { font-size:clamp(15px,2.2vw,22px); opacity:0; animation:rise .9s 2.1s ease-out forwards; }
@@ -452,7 +457,7 @@ async function savePdf(html, filename) {
 function render() {
   const app = $('#app');
   if (!sb) { app.innerHTML = setupView(); return; }
-  if (!token || !S) { app.innerHTML = intro ? introView() : loginView(); return; }
+  if (!token || !S) { app.innerHTML = intro ? introView() : loginView(); if (intro) startLoop(); return; }
   if (S.me.must_change && forcePw()) { app.innerHTML = headerView() + `<main><div class="card" style="max-width:420px;margin:6vh auto">${pwForm(true)}</div></main>`; return; }
   if (!S.term) { app.innerHTML = headerView() + `<main>${termsView()}</main>`; return; }
   app.innerHTML = headerView() + `<main><div class="crumb"><button data-a="terms">← 방과후학교 목록으로</button><span class="disp">${esc(S.term.title)}</span></div>${S.me.role === 'student' ? studentView() : teacherView()}</main>`;
@@ -479,6 +484,7 @@ function introView() {
   let i = 0;
   const word = (w) => `<span class="w">${[...w].map((c) => `<span class="ch" style="animation-delay:${(1.0 + 0.09 * i).toFixed(2)}s, ${(2.2 + 0.13 * i++).toFixed(2)}s">${c}</span>`).join('')}</span>`;
   return `<div class="stage intro" data-a="enter" role="button" tabindex="0" aria-label="${BRAND} 시작하기">${ORBS}
+    <svg class="loop disp" id="loop" aria-hidden="true"><path id="loopPath"/><text dy=".35em"><textPath href="#loopPath"></textPath></text></svg>
     <div class="in">
       <div class="hello">안녕하세요, 오늘도 반가워요!</div>
       <div><span class="school">경북여자상업고등학교</span></div>
@@ -486,6 +492,48 @@ function introView() {
       <div class="tag2">배우고 싶은 것을 골라, 내일의 나를 준비하는 시간</div>
       <div class="go">화면을 눌러 시작하기 →</div>
     </div></div>`;
+}
+/* 첫 화면: "명품 경북여상 방과후학교" 문구가 삼각형 길(왼쪽 변을 위로 → 윗변을 오른쪽으로 → 대각선으로 왼쪽 아래)을 따라 끊임없이 돕니다.
+   길을 두 바퀴 겹쳐 그리고, 한 바퀴 길이에 꼭 맞춘 문구를 그 위에서 밀어 주면 이음매 없이 이어집니다. */
+const LOOP_TEXT = '명품 경북여상 방과후학교';
+function startLoop() {
+  const svg = document.getElementById('loop');
+  if (!svg) return;
+  const path = svg.querySelector('path'), text = svg.querySelector('text'), tp = svg.querySelector('textPath');
+  const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const SPEED = 55;                                   // 1초에 움직이는 거리(px)
+  let W = 0, H = 0, L = 0, t0 = null;
+  const layout = () => {
+    const w = svg.clientWidth, h = svg.clientHeight;
+    if (w === W && h === H) return;
+    W = w; H = h;
+    const fs = Math.max(15, Math.min(26, W * 0.022)), m = fs * 1.25, r = Math.min(W, H) * 0.09;
+    const A = [m, H - m], B = [m, m], C = [W - m, m];  // 왼쪽 아래, 왼쪽 위, 오른쪽 위
+    // 꼭짓점 P 를 둥글게: P 앞뒤로 r 만큼 떨어진 두 점을 곡선으로 잇습니다
+    const toward = (p, q, d) => { const dx = q[0] - p[0], dy = q[1] - p[1], n = Math.hypot(dx, dy); return [p[0] + dx / n * d, p[1] + dy / n * d]; };
+    const f = (p) => p.map((v) => v.toFixed(1)).join(' ');
+    const lap = (first) => {
+      const a1 = toward(A, B, r), b0 = toward(B, A, r), b1 = toward(B, C, r), c0 = toward(C, B, r), c1 = toward(C, A, r), a0 = toward(A, C, r);
+      return `${first ? 'M' + f(a1) : ''} L${f(b0)} Q${f(B)} ${f(b1)} L${f(c0)} Q${f(C)} ${f(c1)} L${f(a0)} Q${f(A)} ${f(a1)}`;
+    };
+    path.setAttribute('d', lap(true) + lap(false));
+    path.style.strokeWidth = (fs * 1.9).toFixed(1) + 'px';
+    L = path.getTotalLength() / 2;
+    const n = Math.max(1, Math.round(L / (fs * 19)));  // 문구 사이 간격까지 한 벌에 글자 19자 폭쯤
+    text.style.fontSize = fs.toFixed(1) + 'px';
+    tp.textContent = (LOOP_TEXT + '\u2003✦\u2003').repeat(n);
+    tp.setAttribute('textLength', L.toFixed(1));
+    tp.setAttribute('lengthAdjust', 'spacing');
+  };
+  const tick = (now) => {
+    if (!svg.isConnected) return;
+    layout();
+    if (t0 === null) t0 = now;
+    tp.setAttribute('startOffset', (still ? 0 : ((now - t0) / 1000 * SPEED) % L).toFixed(1));
+    if (!still) requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+  if (still) addEventListener('resize', () => requestAnimationFrame(tick));
 }
 function loginView() {
   const st = loginRole === 'student';
