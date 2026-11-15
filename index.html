@@ -433,7 +433,7 @@ async function savePdf(html, filename) {
     const sheets = [...stage.querySelectorAll('.sheet')];
     let pdf = null;
     for (let i = 0; i < sheets.length; i++) {
-      const el = sheets[i], land = !el.classList.contains('plan'), W = land ? 297 : 210, H = land ? 210 : 297, M = land ? 10 : 14;
+      const el = sheets[i], land = el.dataset.orient ? el.dataset.orient === 'landscape' : !el.classList.contains('plan'), W = land ? 297 : 210, H = land ? 210 : 297, M = land ? 10 : 14;
       el.style.width = Math.round((W - 2 * M) * 96 / 25.4) + 'px';                 // 종이 폭에 맞춘 화면 폭
       busy.firstChild.textContent = `PDF를 만드는 중… ${i + 1} / ${sheets.length}`;
       const canvas = await window.html2canvas(el, { scale: 2, backgroundColor: '#ffffff', logging: false });
@@ -845,37 +845,49 @@ function letterView() {
       <p><button class="pri">문구 저장</button> <button type="button" class="small" data-a="letterPrint">미리보기·인쇄</button>
       <button type="button" class="small" data-a="letterPdf">PDF 저장</button></p></form></div>`;
 }
+const LETTER_QR = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAUoAAAFKAQAAAABTUiuoAAACoUlEQVR4Xu1bUWqsUAxNqtBPhbeALmXcWbc2LqULKIyfBSXlnETHttDnGx54leTD6owM9yaenJOYqslG65823igieWt6ID3wJDJoWCci2vGyFZG+FZm/qhMwpXigMprIgKBIheQ4KYMnF351K2atG+3UMFQleprREWX29mxmb/gMUGPczu2BTVbYMzCpXZkOm9EPaytsrb/aSdfK3Dfb8McUSVD69gaUMQEudlIPHG9bZgYcNR96ZzCiTKQxi7PjbWuTHWlbEhKCiuJW2fdDWGV2PdK2TrrWGuhZnsFRrH/5UEdZ31ayrp1P6oEjbQvYWhBFGd+MgbcQ74AV0+GRtnXStc6UJfPZPUassi7G4GUmLKKGCWxBTLAw9shAdHjJfPViOaNVSrQQGQSF0m8OFD5DBAm1zIRuu+fXWlhlXWyCtnivFavSC9X7wIupNhnqsYC17u6s3RfgCc/pKQC2pMPkrW9WQrQWTRjktehE5y2Zw7j7WnMBKw+Y3e59QhRdaMkDdN7uTWft7wH0CdEYfBlFIf1wGMlXJoNzGRgseasIlREikKrPX3L95C12o7I6LgBbUfqSvFa85TVxaJCQH0kbJXiAHOViglaZ9FqLdiyMB0U6TN4qJRMSVojMvcvkr/bn4EVXo4Qna6uddK3RYHLz1Lc0BmcGy85TKb2MLzNPbBYOz6YddCK7GjjLt5GlRAsKvvL5C286kcY4nBYyHn8aZMaTZpfjbStmnlgOs7Xh6XDCZCHffhXBscfz6yZ7dFt4EXmlCORkIS+BN59fe/RXf7f81Uc94Go93mpp58Ogk+b0Zym85YGdZ57MSFnejSKNvSIxoi+V2CrAA9EndBva1diMiQsMBCr7hLRHc9Z/4wLN/wj6izNXlremB/7BA58q78T8FrJiFAAAAABJRU5ErkJggg==";
 function letterHtml(L) {
   const lines = (t) => (t || '').split(/\r?\n/).map((x) => x.trim()).filter(Boolean);
-  const list = (t) => `<ol style="margin:4pt 0 8pt 18pt;padding:0">${lines(t).map((x) => `<li style="margin-bottom:3pt">${esc(x)}</li>`).join('')}</ol>`;
-  const head = `<h2 style="text-align:center;font-size:17pt;margin:0 0 6pt">${esc(L.title)}</h2>`;
-  // 앞면: 안내 문구와 운영 개요
-  const front = `<section class="sheet plan" style="font-size:10.5pt;line-height:1.5">${head}
-    <p style="margin:0 0 8pt;white-space:pre-line">${esc(L.greet)}</p>
-    <table style="width:100%;border-collapse:collapse;margin:6pt 0" border="1" cellpadding="5">
-      <tr><th style="width:24%;background:#f2f2f2">운영 기간</th><td>${esc(L.period)}</td></tr>
-      <tr><th style="background:#f2f2f2">수강신청 기간</th><td>${esc(L.enroll)}</td></tr>
-      <tr><th style="background:#f2f2f2">수강료</th><td>${esc(L.fee)}</td></tr></table>
-    <p style="margin:10pt 0 2pt"><b>■ 수강신청 방법</b></p>${list(L.how)}
-    ${lines(L.notes).length ? `<p style="margin:10pt 0 2pt"><b>■ 유의사항</b></p>${list(L.notes)}` : ''}
-    <p style="text-align:right;margin-top:16pt">${esc(L.date)}<br>${esc(L.school)}</p></section>`;
-  // 뒷면: 개설 강좌 자동 표 + 참가 동의서
+  const ol = (t) => `<ol class="lt-ol">${lines(t).map((x) => `<li>${esc(x)}</li>`).join('')}</ol>`;
+  const css = `<style>
+    .lt { font-family:"Pretendard","Malgun Gothic",sans-serif; color:#000; font-size:10pt; line-height:1.5; }
+    .lt h2 { font-size:16pt; text-align:center; margin:0 0 10pt; padding-bottom:6pt; border-bottom:2px solid #000; }
+    .lt p { margin:0 0 6pt; }
+    .lt .lt-h { font-size:11pt; font-weight:bold; margin:10pt 0 4pt; }
+    .lt table { width:100%; border-collapse:collapse; }
+    .lt th, .lt td { border:1px solid #000; padding:3pt 5pt; vertical-align:middle; font-size:9.5pt; }
+    .lt th { background:#eee; text-align:center; }
+    .lt-ol { margin:0 0 4pt 16pt; padding:0; }
+    .lt-ol li { margin-bottom:2pt; }
+    .lt-row { display:flex; gap:12pt; align-items:flex-start; }
+    .lt-qr { flex:0 0 36mm; text-align:center; font-size:9pt; }
+    .lt-qr img { width:34mm; height:34mm; display:block; margin:0 auto 3pt; }
+    .lt-box { border:1px solid #000; padding:8pt 10pt; margin-top:10pt; }
+  </style>`;
+  const front = `<section class="sheet lt" data-orient="portrait">${css}
+    <h2>${esc(L.title)}</h2>
+    <p>${esc(L.greet)}</p>
+    <table><tr><th style="width:26%">운영 기간</th><td>${esc(L.period)}</td></tr>
+      <tr><th>수강신청 기간</th><td>${esc(L.enroll)}</td></tr>
+      <tr><th>수강료</th><td>${esc(L.fee)}</td></tr></table>
+    <div class="lt-h">■ 수강신청 방법</div>
+    <div class="lt-row"><div style="flex:1">${ol(L.how)}</div>
+      <div class="lt-qr"><img src="${LETTER_QR}" alt="QR">신청 페이지 바로가기</div></div>
+    ${lines(L.notes).length ? `<div class="lt-h">■ 유의 사항</div>${ol(L.notes)}` : ''}
+    <p style="text-align:right;margin-top:14pt">${esc(L.date)}<br>${esc(L.school)}</p></section>`;
   const open = S.courses.filter((c) => c.status !== 'cancelled')
     .sort((a, b) => ((typeOf(a.type_code).sort || 0) - (typeOf(b.type_code).sort || 0)) || a.title.localeCompare(b.title));
-  const rows = open.map((c) => `<tr><td>${esc(typeOf(c.type_code).name)}</td><td>${esc(c.title)}</td>
-      <td style="text-align:center">${c.grades.join(',')}</td><td>${esc(daysText(c))}${c.period ? '<br>' + esc(c.period) : ''}</td>
-      <td>${esc(c.room || '')}</td><td>${esc(c.teacher_name || '')}</td></tr>`).join('');
-  const back = `<section class="sheet plan" style="font-size:10pt;line-height:1.45">${head}
-    <p style="margin:0 0 6pt"><b>■ 개설 강좌</b> <span style="color:#555">(${esc(S.term.title)} · 누리집에 등록된 강좌 자동 반영)</span></p>
-    ${open.length ? `<table style="width:100%;border-collapse:collapse" border="1" cellpadding="4">
-      <thead><tr style="background:#f2f2f2"><th>구분</th><th>강좌명</th><th>학년</th><th>요일·시간</th><th>장소</th><th>지도교사</th></tr></thead>
-      <tbody>${rows}</tbody></table>` : '<p>개설된 강좌가 없습니다.</p>'}
-    <div style="margin-top:22pt;border-top:1px dashed #000;padding-top:12pt">
-      <p style="text-align:center;font-size:13pt;margin:0 0 8pt"><b>참가 동의서</b></p>
-      <p style="margin:0 0 8pt">${esc(L.consent)}</p>
-      <p style="margin:14pt 0">(&nbsp;&nbsp;&nbsp;&nbsp;)학년 (&nbsp;&nbsp;&nbsp;&nbsp;)반 (&nbsp;&nbsp;&nbsp;&nbsp;)번 &nbsp; 학생: ____________________</p>
-      <p style="margin:14pt 0">보호자: ____________________ (서명 또는 인)</p>
-    </div></section>`;
+  const rows = open.map((c) => `<tr><td style="text-align:center">${esc(typeOf(c.type_code).name)}</td><td>${esc(c.title)}</td>
+      <td style="text-align:center">${c.grades.join(',')}</td><td>${esc(daysText(c))} ${esc(c.period || '')}</td>
+      <td>${esc(c.room || '')}</td><td style="text-align:center">${esc(c.teacher_name || '')}</td></tr>`).join('');
+  const back = `<section class="sheet lt" data-orient="portrait">${css}
+    <h2>${esc(L.title)}</h2>
+    <div class="lt-h" style="margin-top:0">■ 개설 강좌 <span style="font-weight:normal;font-size:9pt">(${esc(S.term.title)})</span></div>
+    ${open.length ? `<table><thead><tr><th>구분</th><th>강좌명</th><th>학년</th><th>요일·교시</th><th>장소</th><th>지도교사</th></tr></thead><tbody>${rows}</tbody></table>` : '<p>개설된 강좌가 없습니다.</p>'}
+    <div class="lt-box"><div class="lt-h" style="margin-top:0;text-align:center">참가 동의서</div>
+      <p>${esc(L.consent)}</p>
+      <p style="margin-top:10pt">(&nbsp;&nbsp;&nbsp;&nbsp;)학년 (&nbsp;&nbsp;&nbsp;&nbsp;)반 (&nbsp;&nbsp;&nbsp;&nbsp;)번 &nbsp;&nbsp; 학생: ______________________</p>
+      <p style="margin-top:10pt">보호자: ______________________ (서명 또는 인)</p></div></section>`;
   return front + back;
 }
 function currentLetter() {
