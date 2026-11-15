@@ -31,6 +31,7 @@
   .orb.o4 { width:150px; height:150px; left:12%; bottom:10%; animation-delay:-4.5s; }
   @keyframes float { 0%,100% { transform:translateY(0) scale(1); } 50% { transform:translateY(-26px) scale(1.05); } }
   .intro { cursor:pointer; text-align:center; user-select:none; }
+  @supports (height:100dvh) { .stage.intro { min-height:100dvh; } }   /* 휴대폰 주소창에 아래쪽이 가려지지 않게 */
   .intro .in { position:relative; z-index:1; max-width:1000px; }
   .intro .hello { font-size:clamp(17px,2.6vw,26px); opacity:0; animation:rise .9s .2s ease-out forwards; letter-spacing:.02em; }
   .intro .school { display:inline-block; margin-top:18px; padding:5px 16px; border:1px solid rgba(255,255,255,.6);
@@ -507,8 +508,8 @@ function startLoop() {
     const w = svg.clientWidth, h = svg.clientHeight;
     if (w === W && h === H) return;
     W = w; H = h;
-    const fs = Math.max(15, Math.min(26, W * 0.022)), m = fs * 1.25, r = Math.min(W, H) * 0.07;
-    const A = [m, H - m], B = [m, m], C = [W - m, m], D = [W - m, H - m];  // 왼쪽 아래, 왼쪽 위, 오른쪽 위, 오른쪽 아래
+    const fs = Math.max(15, Math.min(26, W * 0.022)), m = fs * 1.25, my = fs * 2.1, r = Math.min(W, H) * 0.07;   // my: 위·아래 여백(가려지지 않게 넉넉히)
+    const A = [m, H - my], B = [m, my], C = [W - m, my], D = [W - m, H - my];  // 왼쪽 아래, 왼쪽 위, 오른쪽 위, 오른쪽 아래
     // 꼭짓점 P 를 둥글게: P 앞뒤로 r 만큼 떨어진 두 점을 곡선으로 잇습니다
     const toward = (p, q, d) => { const dx = q[0] - p[0], dy = q[1] - p[1], n = Math.hypot(dx, dy); return [p[0] + dx / n * d, p[1] + dy / n * d]; };
     const f = (p) => p.map((v) => v.toFixed(1)).join(' ');
