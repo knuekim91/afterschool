@@ -214,9 +214,6 @@ create table if not exists as_audit (
 create index if not exists as_audit_course on as_audit (course_id, id desc);
 alter table as_audit enable row level security;
 
--- 가정통신문에 넣을 문구(방과후학교마다 따로 저장)
-alter table as_terms add column if not exists letter jsonb;
-
 -- 담임 학급 (담임 선생님은 자기 반 학생의 비밀번호를 초기화할 수 있습니다)
 alter table as_teachers add column if not exists hr_grade int;
 alter table as_teachers add column if not exists hr_class int;
@@ -595,17 +592,6 @@ begin
   end loop;
   perform as_audit_add('teacher', a.o_uid, '지난 학기 강좌 복사', null, null, p_from || ' → ' || p_to || ' (' || n || '강좌)');
   return n;
-end $$;
-
--- 가정통신문 문구 저장 (관리자·부관리자)
-create or replace function as_save_letter(p_token uuid, p_term bigint, p_letter json) returns void
-language plpgsql security definer set search_path = public, extensions as $$
-declare a record;
-begin
-  select * into a from as_auth(p_token);
-  if not a.o_admin then raise exception '관리자만 사용할 수 있습니다.'; end if;
-  update as_terms set letter = p_letter::jsonb where id = p_term;
-  if not found then raise exception '방과후학교를 찾을 수 없습니다.'; end if;
 end $$;
 
 -- 변경 기록 보기 (관리자·부관리자): 최근 것부터

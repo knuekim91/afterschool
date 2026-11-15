@@ -793,7 +793,7 @@ function resultHtml() {
     <tbody>${rows}<tr><th colspan="6">합계 (${cs.length}개 강좌)</th><th>${E}</th><th>${r1(P)}시간</th><th>${r1(D)}시간</th><th colspan="2"></th></tr></tbody></table></section>`;
 }
 
-/* ---------------------------------------------------------- 변경 기록·가정통신문 */
+/* ---------------------------------------------------------- 변경 기록 */
 let AUD = null;   // { key, rows }  변경 기록 캐시 (학기별)
 function auditView() {
   if (!AUD || AUD.key !== termId) {
@@ -815,96 +815,14 @@ function auditView() {
         <td>${esc(r.course || '')}</td><td class="nowrap">${esc(r.student || '')}</td><td>${esc(r.action)}${r.detail ? ' <span class="sub">' + esc(r.detail) + '</span>' : ''}</td></tr>`).join('')}
       </tbody></table></div>` : '<p>기록이 없습니다.</p>'}</div>`;
 }
-const LETTER_FIELDS = [
-  ['title', '제목'], ['greet', '첫머리 인사'], ['period', '운영 기간'], ['enroll', '수강신청 기간'],
-  ['fee', '수강료'], ['how', '수강신청 방법 (줄마다 한 항목)'], ['notes', '유의사항 (줄마다 한 항목)'],
-  ['consent', '참가 동의서 문구'], ['date', '발행 날짜 (예: 2026. 12. 7.)'], ['school', '발행 기관 (예: 경북여자상업고등학교장)'],
-];
-function letterDefaults() {
-  return {
-    title: '2026년 겨울방학 방과후학교 운영 및 수강신청 안내',
-    greet: '학부모님, 안녕하십니까?\n늘 본교 교육활동에 보내 주시는 관심과 협조에 깊이 감사드립니다. 본교에서는 학생들의 기초학력 향상과 자격증 취득, 취업 역량 강화를 위하여 아래와 같이 방과후학교를 운영하고자 합니다. 자녀가 희망하는 강좌를 신청하여 성실히 참여할 수 있도록 가정에서도 많은 관심과 격려를 부탁드립니다.',
-    period: '2027. 1. 4.(월) ~ 2027. 1. 19.(화)',
-    enroll: '2026. 12. 14.(월) ~ 12. 18.(금) (방과후학교 누리집에서 학생이 직접 신청)',
-    fee: '무료 (교재비는 강좌별로 별도 안내)',
-    how: '오른쪽 QR코드를 찍거나 주소(knuekim91.github.io/afterschool)에 접속합니다.\n[학생]을 선택하고 학년·반·번호·이름과 비밀번호를 입력해 로그인합니다.\n(비밀번호를 잊은 경우 담임 선생님께 초기화를 요청합니다.)\n방과후학교를 선택한 뒤, [강의계획서]를 확인하고 원하는 강좌의 [신청]을 누릅니다.\n신청 내역과 주간 시간표, 출석 현황은 같은 화면에서 언제든지 확인할 수 있습니다.',
-    notes: '같은 요일에 열리는 강좌는 한 강좌만 신청할 수 있으며, 정원이 차면 신청이 마감됩니다.\n기초반·공무원반 등 일부 강좌는 담당 선생님이 수강 학생을 지정합니다.\n신청 인원이 적은 강좌는 폐강될 수 있으며, 이 경우 다른 강좌를 다시 신청할 수 있습니다.\n수강을 신청한 학생은 끝까지 성실히 출석해야 하며, 결석 시에는 사전에 담당 선생님께 알려 주시기 바랍니다.',
-    consent: '본인은 위 안내 내용을 확인하였으며, 자녀가 방과후학교에 참가하는 것에 동의합니다.',
-    date: '2026. 12. 7.',
-    school: '경북여자상업고등학교장'
-  };
-}
-function letterView() {
-  const L = Object.assign(letterDefaults(), S.term.letter || {});
-  const fields = LETTER_FIELDS.map(([k, n]) => `<label>${n}</label>${['greet', 'how', 'notes', 'consent'].includes(k)
-      ? `<textarea name="${k}" rows="${k === 'greet' || k === 'consent' ? 2 : 3}" style="width:100%">${esc(L[k] || '')}</textarea>`
-      : `<input name="${k}" value="${esc(L[k] || '')}" style="width:100%;max-width:520px">`}`).join('');
-  return `<div class="card"><h2>가정통신문</h2>
-    <p class="sub">이 방과후학교(학기)의 가정통신문 문구입니다. 저장하면 다음 학기에 같은 양식으로 불러와 고쳐 쓸 수 있습니다. 관리자·부관리자만 볼 수 있습니다.</p>
-    <form data-f="letter">${fields}
-      <p><button class="pri">문구 저장</button> <button type="button" class="small" data-a="letterPrint">미리보기·인쇄</button>
-      <button type="button" class="small" data-a="letterPdf">PDF 저장</button></p></form></div>`;
-}
-const LETTER_QR = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAUoAAAFKAQAAAABTUiuoAAACoUlEQVR4Xu1bUWqsUAxNqtBPhbeALmXcWbc2LqULKIyfBSXlnETHttDnGx54leTD6owM9yaenJOYqslG65823igieWt6ID3wJDJoWCci2vGyFZG+FZm/qhMwpXigMprIgKBIheQ4KYMnF351K2atG+3UMFQleprREWX29mxmb/gMUGPczu2BTVbYMzCpXZkOm9EPaytsrb/aSdfK3Dfb8McUSVD69gaUMQEudlIPHG9bZgYcNR96ZzCiTKQxi7PjbWuTHWlbEhKCiuJW2fdDWGV2PdK2TrrWGuhZnsFRrH/5UEdZ31ayrp1P6oEjbQvYWhBFGd+MgbcQ74AV0+GRtnXStc6UJfPZPUassi7G4GUmLKKGCWxBTLAw9shAdHjJfPViOaNVSrQQGQSF0m8OFD5DBAm1zIRuu+fXWlhlXWyCtnivFavSC9X7wIupNhnqsYC17u6s3RfgCc/pKQC2pMPkrW9WQrQWTRjktehE5y2Zw7j7WnMBKw+Y3e59QhRdaMkDdN7uTWft7wH0CdEYfBlFIf1wGMlXJoNzGRgseasIlREikKrPX3L95C12o7I6LgBbUfqSvFa85TVxaJCQH0kbJXiAHOViglaZ9FqLdiyMB0U6TN4qJRMSVojMvcvkr/bn4EVXo4Qna6uddK3RYHLz1Lc0BmcGy85TKb2MLzNPbBYOz6YddCK7GjjLt5GlRAsKvvL5C286kcY4nBYyHn8aZMaTZpfjbStmnlgOs7Xh6XDCZCHffhXBscfz6yZ7dFt4EXmlCORkIS+BN59fe/RXf7f81Uc94Go93mpp58Ogk+b0Zym85YGdZ57MSFnejSKNvSIxoi+V2CrAA9EndBva1diMiQsMBCr7hLRHc9Z/4wLN/wj6izNXlremB/7BA58q78T8FrJiFAAAAABJRU5ErkJggg==";
-function letterHtml(L) {
-  const lines = (t) => (t || '').split(/\r?\n/).map((x) => x.trim()).filter(Boolean);
-  const ol = (t) => `<ol class="lt-ol">${lines(t).map((x) => `<li>${esc(x)}</li>`).join('')}</ol>`;
-  const css = `<style>
-    .lt { font-family:"Pretendard","Malgun Gothic",sans-serif; color:#000; font-size:10pt; line-height:1.5; }
-    .lt h2 { font-size:16pt; text-align:center; margin:0 0 10pt; padding-bottom:6pt; border-bottom:2px solid #000; }
-    .lt p { margin:0 0 6pt; }
-    .lt .lt-h { font-size:11pt; font-weight:bold; margin:10pt 0 4pt; }
-    .lt table { width:100%; border-collapse:collapse; }
-    .lt th, .lt td { border:1px solid #000; padding:3pt 5pt; vertical-align:middle; font-size:9.5pt; }
-    .lt th { background:#eee; text-align:center; }
-    .lt-ol { margin:0 0 4pt 16pt; padding:0; }
-    .lt-ol li { margin-bottom:2pt; }
-    .lt-row { display:flex; gap:12pt; align-items:flex-start; }
-    .lt-qr { flex:0 0 36mm; text-align:center; font-size:9pt; }
-    .lt-qr img { width:34mm; height:34mm; display:block; margin:0 auto 3pt; }
-    .lt-box { border:1px solid #000; padding:8pt 10pt; margin-top:10pt; }
-  </style>`;
-  const front = `<section class="sheet lt" data-orient="portrait">${css}
-    <h2>${esc(L.title)}</h2>
-    <p>${esc(L.greet)}</p>
-    <table><tr><th style="width:26%">운영 기간</th><td>${esc(L.period)}</td></tr>
-      <tr><th>수강신청 기간</th><td>${esc(L.enroll)}</td></tr>
-      <tr><th>수강료</th><td>${esc(L.fee)}</td></tr></table>
-    <div class="lt-h">■ 수강신청 방법</div>
-    <div class="lt-row"><div style="flex:1">${ol(L.how)}</div>
-      <div class="lt-qr"><img src="${LETTER_QR}" alt="QR">신청 페이지 바로가기</div></div>
-    ${lines(L.notes).length ? `<div class="lt-h">■ 유의 사항</div>${ol(L.notes)}` : ''}
-    <p style="text-align:right;margin-top:14pt">${esc(L.date)}<br>${esc(L.school)}</p></section>`;
-  const open = S.courses.filter((c) => c.status !== 'cancelled')
-    .sort((a, b) => ((typeOf(a.type_code).sort || 0) - (typeOf(b.type_code).sort || 0)) || a.title.localeCompare(b.title));
-  const rows = open.map((c) => `<tr><td style="text-align:center">${esc(typeOf(c.type_code).name)}</td><td>${esc(c.title)}</td>
-      <td style="text-align:center">${c.grades.join(',')}</td><td>${esc(daysText(c))} ${esc(c.period || '')}</td>
-      <td>${esc(c.room || '')}</td><td style="text-align:center">${esc(c.teacher_name || '')}</td></tr>`).join('');
-  const back = `<section class="sheet lt" data-orient="portrait">${css}
-    <h2>${esc(L.title)}</h2>
-    <div class="lt-h" style="margin-top:0">■ 개설 강좌 <span style="font-weight:normal;font-size:9pt">(${esc(S.term.title)})</span></div>
-    ${open.length ? `<table><thead><tr><th>구분</th><th>강좌명</th><th>학년</th><th>요일·교시</th><th>장소</th><th>지도교사</th></tr></thead><tbody>${rows}</tbody></table>` : '<p>개설된 강좌가 없습니다.</p>'}
-    <div class="lt-box"><div class="lt-h" style="margin-top:0;text-align:center">참가 동의서</div>
-      <p>${esc(L.consent)}</p>
-      <p style="margin-top:10pt">(&nbsp;&nbsp;&nbsp;&nbsp;)학년 (&nbsp;&nbsp;&nbsp;&nbsp;)반 (&nbsp;&nbsp;&nbsp;&nbsp;)번 &nbsp;&nbsp; 학생: ______________________</p>
-      <p style="margin-top:10pt">보호자: ______________________ (서명 또는 인)</p></div></section>`;
-  return front + back;
-}
-function currentLetter() {
-  const f = document.querySelector('form[data-f="letter"]');
-  const L = Object.assign(letterDefaults(), S.term.letter || {});
-  if (f) for (const [k] of LETTER_FIELDS) { const el = f.elements[k]; if (el) L[k] = el.value; }
-  return L;
-}
-
 /* ---------------------------------------------------------------- 교사 */
 function teacherView() {
   const tabs = [['my', '내 강좌'], ['all', '전체 강좌'], ['cls', '반별 수강 현황']];
   if (S.me.hr_grade) tabs.splice(1, 0, ['hr', `우리 반 (${S.me.hr_grade}-${S.me.hr_class})`]);
-  if (isAdmin()) tabs.push(['dash', '운영 현황'], ['att', '출석부 전체'], ['plan', '강의계획서 전체'], ['people', '명단 관리'], ['letter', '가정통신문'], ['audit', '변경 기록']);
+  if (isAdmin()) tabs.push(['dash', '운영 현황'], ['att', '출석부 전체'], ['plan', '강의계획서 전체'], ['people', '명단 관리'], ['audit', '변경 기록']);
   if (isSuper()) tabs.push(['set', '일정·설정']);
   if (!tabs.some((t) => t[0] === tab)) tab = 'my';
-  const body = { letter: letterView, audit: auditView, dash: dashView, my: myCoursesView, hr: homeroomView, att: attAllView, plan: planAllView, all: allCoursesView, cls: classView, people: peopleView, set: settingsView }[tab]();
+  const body = { audit: auditView, dash: dashView, my: myCoursesView, hr: homeroomView, att: attAllView, plan: planAllView, all: allCoursesView, cls: classView, people: peopleView, set: settingsView }[tab]();
   return `<div class="tabs">${tabs.map(([k, n]) => `<button data-a="tab" data-v="${k}" class="${tab === k ? 'on' : ''}">${n}</button>`).join('')}</div>${body}`;
 }
 function statusTag(c) {
@@ -1423,8 +1341,6 @@ const A = {
   waitOn: (el) => run(async () => { const n = await api('as_wait', { p_course: +el.dataset.id }); await refresh(); toast(`대기 ${n}번째로 등록했습니다. 자리가 나면 자동 신청됩니다.`); }),
   waitOff: (el) => run(async () => { await api('as_unwait', { p_course: +el.dataset.id }); await refresh(); }, '대기를 취소했습니다.'),
   auditReload: () => { AUD = null; render(); },
-  letterPrint: () => doPrint(letterHtml(currentLetter())),
-  letterPdf: () => savePdf(letterHtml(currentLetter()), `가정통신문_${S.term.title}.pdf`),
   cancel: (el) => { if (confirm('신청을 취소할까요?')) run(async () => { await api('as_cancel_enroll', { p_course: +el.dataset.id }); await refresh(); }, '취소되었습니다.'); },
   courseNew: () => { openModal(courseForm(null)); fillDates(null, $('#modal [name=type_code]').value); },
   courseEdit: (el) => { const c = courseById(+el.dataset.id); openModal(courseForm(c)); fillDates(c.dates.length ? c.dates : null, c.type_code, c.days, c.contents); },
@@ -1566,10 +1482,6 @@ const F = {
     const n = await api('as_copy_courses', { p_from: +fd.get('from'), p_to: termId, p_shift: +fd.get('shift') || 0 });
     await refresh(); toast(`${n}개 강좌를 복사했습니다. 날짜와 정원을 확인해 주세요.`);
   }),
-  letter: (fd) => run(async () => {
-    const L = {}; for (const [k, v] of fd.entries()) L[k] = String(v).trim();
-    await api('as_save_letter', { p_term: termId, p_letter: L }); await refresh();
-  }, '가정통신문 문구를 저장했습니다.'),
   settings: (fd) => run(async () => {
     await api('as_save_term', { p_term: {
       id: termId, title: fd.get('title'), start_date: fd.get('start_date') || null, end_date: fd.get('end_date') || null,
