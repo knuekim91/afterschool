@@ -108,8 +108,11 @@
             border-bottom:1px solid var(--line); }
   .course:last-child { border-bottom:0; }
   .course .t { font-weight:600; }
-  .course .cact { display:flex; flex-direction:column; align-items:flex-end; gap:6px; flex:0 0 auto; white-space:nowrap; }
-  .planbtn { border-radius:999px; }
+  .course .cact { display:grid; grid-template-columns:116px 116px; gap:8px; flex:0 0 auto; white-space:nowrap; }
+  .course .cact > * { box-sizing:border-box; height:38px; margin:0; padding:0 6px; border-radius:10px; font-size:14px; font-weight:600;
+    display:flex; align-items:center; justify-content:center; }
+  .course .cact > .tag { border:1px solid transparent; }
+  @media (max-width:560px) { .course .cact { grid-template-columns:104px; } }
   .crumb { display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:14px; }
   .crumb button { border-radius:20px; padding:7px 16px; font-weight:700; color:var(--main-d); border-color:var(--main); background:#fff; }
   .crumb button:hover { background:var(--main); color:#fff; }
@@ -622,7 +625,7 @@ function studentView() {
     return `<button class="pri" data-a="enroll" data-id="${c.id}">신청</button>`;
   };
   const item = (c, withAction) => `<div class="course"><div><div class="t">${esc(c.title)}</div>
-      <div class="sub">${courseMeta(c)}</div></div><div class="cact">${withAction ? action(c) : ''}<button class="small planbtn" data-a="viewPlan" data-id="${c.id}">📄 강의계획서</button></div></div>`;
+      <div class="sub">${courseMeta(c)}</div></div><div class="cact"><button data-a="viewPlan" data-id="${c.id}">강의계획서</button>${withAction ? action(c) : ''}</div></div>`;
 
   let html = `<div class="card"><h2>내 수강 강좌</h2>
     <p class="sub">운영 기간: ${periodText()} · 수강신청: ${open ? '<b>진행 중</b>' : '마감(신청 기간 아님)'}</p>
