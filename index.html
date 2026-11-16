@@ -159,6 +159,11 @@
   .drow .no { flex:0 0 34px; font-size:12px; color:var(--sub); text-align:right; }
   .drow input { flex:1; min-width:0; visibility:hidden; padding:5px 9px; }
   .drow.on input { visibility:visible; }
+  .course-box { border:1px solid var(--line); border-radius:12px; padding:14px 16px; margin:14px 0; background:#fcfbff; max-width:460px; }
+  .course-box .chk-big { display:flex; align-items:center; gap:8px; font-size:17px; font-weight:600; color:var(--ink); margin:0 0 8px; }
+  .course-box .chk-big input { width:18px; height:18px; margin:0; }
+  .course-box .row { margin-top:4px; }
+  .course-box .sub { margin:8px 0 0; }
   .pal { display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin:8px 0; }
   .pal button { border-radius:16px; padding:4px 12px; }
   .pal button.on { background:var(--main); color:#fff; border-color:var(--main); }
@@ -1353,11 +1358,13 @@ function settingsView() {
         <div><label>종료일</label><input name="end_date" type="date" value="${s.end_date || ''}"></div></div>
       <label>폐강 검토 기준 인원 (이 인원 미만이면 '인원 미달' 표시)</label>
       <input name="min_students" type="number" min="0" value="${s.min_students}" style="width:120px">
-      <p><label style="display:inline;color:inherit;font-size:15px"><input type="checkbox" name="course_open" ${s.course_open ? 'checked' : ''}> 교사 강좌 개설·수정 허용</label></p>
-      <div class="row" style="max-width:420px"><div><label>개설·수정 허용 시작일</label><input name="course_open_from" type="date" value="${s.course_open_from || ''}"></div>
-        <div><label>개설·수정 허용 종료일</label><input name="course_open_to" type="date" value="${s.course_open_to || ''}"></div></div>
-      <p class="sub">허용 기간을 넣으면 체크 여부와 관계없이 그 기간 동안만 교사가 강좌를 개설·수정할 수 있고, 기간이 지나면 자동으로 막힙니다. 두 날짜를 모두 비우면 위 체크값을 따릅니다.</p>
-      <p><label style="display:inline;color:inherit;font-size:15px"><input type="checkbox" name="enroll_open" ${s.enroll_open ? 'checked' : ''}> 학생 수강신청 열기</label></p>
+      <div class="course-box">
+        <label class="chk-big"><input type="checkbox" name="course_open" ${s.course_open ? 'checked' : ''}> 교사 강좌 개설·수정 허용</label>
+        <div class="row" style="max-width:420px"><div><label>허용 시작일</label><input name="course_open_from" type="date" value="${s.course_open_from || ''}"></div>
+          <div><label>허용 종료일</label><input name="course_open_to" type="date" value="${s.course_open_to || ''}"></div></div>
+        <p class="sub">허용 기간을 넣으면 체크 여부와 관계없이 그 기간 동안만 교사가 강좌를 개설·수정할 수 있고, 기간이 지나면 자동으로 막힙니다. 두 날짜를 모두 비우면 위 체크값을 따릅니다.</p>
+      </div>
+      <div class="course-box"><label class="chk-big"><input type="checkbox" name="enroll_open" ${s.enroll_open ? 'checked' : ''}> 학생 수강신청 열기</label></div>
       <button class="pri">저장</button>
       <button type="button" class="danger" data-a="termDel" style="float:right">이 방과후학교 삭제</button>
     </form>
