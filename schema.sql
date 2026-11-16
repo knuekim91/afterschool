@@ -114,6 +114,8 @@ create table if not exists as_sessions (
 );
 
 -- (이전 버전에서 올라온 경우) 강좌에 운영 단위 칸을 추가하고, 첫 운영 단위를 만듭니다
+alter table as_terms add column if not exists course_open_from date;   -- 강좌 개설·수정 허용 기간 시작 (비워 두면 course_open 체크값을 따름)
+alter table as_terms add column if not exists course_open_to   date;   -- 강좌 개설·수정 허용 기간 끝
 alter table as_courses add column if not exists term_id bigint references as_terms(id);
 do $$
 declare v bigint; s record;
@@ -630,7 +632,10 @@ begin
   if not exists (select 1 from as_terms where id = v_term) then
     raise exception '방과후학교(운영 단위)를 찾을 수 없습니다.';
   end if;
-  if not a.o_admin and not (select course_open from as_terms where id = v_term) then
+  if not a.o_admin and not (select case when t.course_open_from is not null and t.course_open_to is not null
+                                       then current_date between t.course_open_from and t.course_open_to
+                                       else t.course_open end
+                            from as_terms t where t.id = v_term) then
     raise exception '지금은 강좌 개설·수정 기간이 아닙니다.';
   end if;
 
@@ -902,6 +907,8 @@ begin
       end_date     = v_e,
       enroll_open  = coalesce((p_term->>'enroll_open')::boolean, enroll_open),
       course_open  = coalesce((p_term->>'course_open')::boolean, course_open),
+      course_open_from = case when (p_term::jsonb) ? 'course_open_from' then nullif(p_term->>'course_open_from', '')::date else course_open_from end,
+      course_open_to   = case when (p_term::jsonb) ? 'course_open_to'   then nullif(p_term->>'course_open_to', '')::date   else course_open_to   end,
       min_students = coalesce(nullif(p_term->>'min_students', '')::int, min_students)
     where id = v_id;
     if not found then raise exception '방과후학교를 찾을 수 없습니다.'; end if;

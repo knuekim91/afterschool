@@ -865,6 +865,15 @@ function auditView() {
       </tbody></table></div>` : '<p>기록이 없습니다.</p>'}</div>`;
 }
 /* ---------------------------------------------------------------- 교사 */
+// 교사 강좌 개설·수정 가능 여부: 허용 기간이 있으면 오늘이 그 기간 안일 때만, 없으면 체크값을 따릅니다.
+function courseOpenNow(t) {
+  if (!t) return false;
+  if (t.course_open_from && t.course_open_to) {
+    const today = new Date().toLocaleDateString('en-CA');
+    return today >= t.course_open_from && today <= t.course_open_to;
+  }
+  return !!t.course_open;
+}
 function teacherView() {
   const tabs = [['my', '내 강좌'], ['all', '전체 강좌'], ['cls', '반별 수강 현황']];
   if (S.me.hr_grade) tabs.splice(1, 0, ['hr', `우리 반 (${S.me.hr_grade}-${S.me.hr_class})`]);
@@ -880,7 +889,7 @@ function statusTag(c) {
 }
 function myCoursesView() {
   const cs = S.courses.filter((c) => c.teacher_id === S.me.id);
-  const canEdit = isAdmin() || S.term.course_open;
+  const canEdit = isAdmin() || courseOpenNow(S.term);
   return teacherToday(cs) + `<div class="card"><div class="row" style="justify-content:space-between"><h2>내 강좌</h2>
       <div style="flex:0 0 auto"><button class="pri" data-a="courseNew" ${canEdit ? '' : 'disabled'}>+ 강좌 개설</button></div></div>
     <p class="sub">운영 기간: ${periodText()}${canEdit ? '' : ' · 지금은 강좌 개설·수정 기간이 아닙니다.'}</p>
@@ -1345,6 +1354,9 @@ function settingsView() {
       <label>폐강 검토 기준 인원 (이 인원 미만이면 '인원 미달' 표시)</label>
       <input name="min_students" type="number" min="0" value="${s.min_students}" style="width:120px">
       <p><label style="display:inline;color:inherit;font-size:15px"><input type="checkbox" name="course_open" ${s.course_open ? 'checked' : ''}> 교사 강좌 개설·수정 허용</label></p>
+      <div class="row" style="max-width:420px"><div><label>개설·수정 허용 시작일</label><input name="course_open_from" type="date" value="${s.course_open_from || ''}"></div>
+        <div><label>개설·수정 허용 종료일</label><input name="course_open_to" type="date" value="${s.course_open_to || ''}"></div></div>
+      <p class="sub">허용 기간을 넣으면 체크 여부와 관계없이 그 기간 동안만 교사가 강좌를 개설·수정할 수 있고, 기간이 지나면 자동으로 막힙니다. 두 날짜를 모두 비우면 위 체크값을 따릅니다.</p>
       <p><label style="display:inline;color:inherit;font-size:15px"><input type="checkbox" name="enroll_open" ${s.enroll_open ? 'checked' : ''}> 학생 수강신청 열기</label></p>
       <button class="pri">저장</button>
       <button type="button" class="danger" data-a="termDel" style="float:right">이 방과후학교 삭제</button>
@@ -1534,7 +1546,8 @@ const F = {
   settings: (fd) => run(async () => {
     await api('as_save_term', { p_term: {
       id: termId, title: fd.get('title'), start_date: fd.get('start_date') || null, end_date: fd.get('end_date') || null,
-      min_students: fd.get('min_students'), course_open: fd.get('course_open') === 'on', enroll_open: fd.get('enroll_open') === 'on' } });
+      min_students: fd.get('min_students'), course_open: fd.get('course_open') === 'on', enroll_open: fd.get('enroll_open') === 'on',
+      course_open_from: fd.get('course_open_from') || null, course_open_to: fd.get('course_open_to') || null } });
     await refresh();
   }, '저장되었습니다.'),
   cancelClass: (fd) => {
