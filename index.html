@@ -1609,7 +1609,16 @@ document.addEventListener('submit', (e) => {
   e.preventDefault();
   F[f.dataset.f](new FormData(f), e.submitter, f);
 });
-window.addEventListener('popstate', () => { if (token && S && S.term) A.terms(); });   // 뒤로 가기 → 목록
+// 뒤로 가기: 학기 상세 → 목록, 최상위 화면 → 나가기 확인 후 종료
+let allowExit = false;
+const armExitGuard = () => { try { history.pushState({ guard: 1 }, ''); } catch (e) {} };
+window.addEventListener('popstate', () => {
+  if (allowExit) return;
+  if (token && S && S.term) { A.terms(); return; }
+  if (confirm('사이트에서 나가시겠습니까?')) { allowExit = true; history.back(); }
+  else armExitGuard();
+});
+armExitGuard();
 document.addEventListener('input', (e) => { if (e.target.classList && e.target.classList.contains('miss') && e.target.value.trim()) e.target.classList.remove('miss'); });
 document.addEventListener('keydown', (e) => {
   if ((e.key === 'Enter' || e.key === ' ') && e.target.dataset && e.target.dataset.a === 'enter') A.enter();
