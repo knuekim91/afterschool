@@ -864,7 +864,7 @@ function payView() {
   const total = rows.reduce((sum, r) => sum + (r.amount || 0), 0);
   return `<div class="card"><div class="row" style="justify-content:space-between"><h2>수당 지급표</h2>
       <button class="small" data-a="payReload">새로고침</button></div>
-    <p class="sub">시간표 기준 · 1시간당 35,000원 · 수업 시간은 결강·보강을 반영한 실제 수업 횟수입니다.</p>
+    <p class="sub">시간표 기준 · 1시간당 ${Number(S.term?.pay_rate ?? 35000).toLocaleString()}원 · 기초반 1시간, 그 외 강좌 2시간 기준 · 수업 시간은 결강·보강을 반영한 실제 수업 횟수입니다.</p>
     <p class="sub">금액은 강좌의 수업 날짜와 결강·보강 기록에서 자동 계산되며, 금액만 따로 고칠 수 없습니다. 금액을 바꾸려면 해당 강좌의 수업 날짜·결강·보강을 고치세요.</p>
     ${PAY.err ? `<p class="tag bad">${esc(PAY.err)}</p>` : ''}
     ${rows.length ? `<div class="scroll"><table><thead><tr><th>학년</th><th>강좌명</th><th>담당교사</th><th>수업 시간 (결보강 포함)</th><th>금액</th><th>계좌번호</th></tr></thead><tbody>
@@ -1385,6 +1385,8 @@ function settingsView() {
         <div><label>종료일</label><input name="end_date" type="date" value="${s.end_date || ''}"></div></div>
       <label>폐강 검토 기준 인원 (이 인원 미만이면 '인원 미달' 표시)</label>
       <input name="min_students" type="number" min="0" value="${s.min_students}" style="width:120px">
+      ${isSuper() ? `<label>수당 1시간 단가 (원, 관리자만 수정)</label>
+      <input name="pay_rate" type="number" min="0" step="1000" value="${s.pay_rate ?? 35000}" style="width:160px">` : ''}
       <div class="course-box">
         <label class="chk-big"><input type="checkbox" name="course_open" ${s.course_open ? 'checked' : ''}> 교사 강좌 개설·수정 허용</label>
         <div class="row" style="max-width:420px"><div><label>허용 시작일</label><input name="course_open_from" type="date" value="${s.course_open_from || ''}"></div>
@@ -1581,7 +1583,7 @@ const F = {
   settings: (fd) => run(async () => {
     await api('as_save_term', { p_term: {
       id: termId, title: fd.get('title'), start_date: fd.get('start_date') || null, end_date: fd.get('end_date') || null,
-      min_students: fd.get('min_students'), course_open: fd.get('course_open') === 'on', enroll_open: fd.get('enroll_open') === 'on',
+      min_students: fd.get('min_students'), pay_rate: fd.get('pay_rate') || null, course_open: fd.get('course_open') === 'on', enroll_open: fd.get('enroll_open') === 'on',
       course_open_from: fd.get('course_open_from') || null, course_open_to: fd.get('course_open_to') || null } });
     await refresh();
   }, '저장되었습니다.'),

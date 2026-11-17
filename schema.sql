@@ -118,6 +118,7 @@ create table if not exists as_sessions (
 -- (이전 버전에서 올라온 경우) 강좌에 운영 단위 칸을 추가하고, 첫 운영 단위를 만듭니다
 alter table as_terms add column if not exists course_open_from date;   -- 강좌 개설·수정 허용 기간 시작 (비워 두면 course_open 체크값을 따름)
 alter table as_terms add column if not exists course_open_to   date;   -- 강좌 개설·수정 허용 기간 끝
+alter table as_terms add column if not exists pay_rate int not null default 35000;  -- 수당 1시간 단가(원), 관리자만 수정
 alter table as_courses add column if not exists term_id bigint references as_terms(id);
 alter table as_courses add column if not exists pay_account text not null default '';   -- 강사 수당 입금 계좌 (강좌 개설 시 등록)
 do $$
@@ -617,19 +618,20 @@ begin
 end $$;
 
 -- ---------- 교사: 강좌 개설 / 학생 지정 ----------------------------------
--- 수당 지급표: 강좌별 수업 횟수 = 수업 날짜 - 결강 + 보강, 1회 시간 = 교시 수(8·9교시 → 2시간), 금액 = 시간 × 35,000원
+-- 수당 지급표: 강좌별 수업 횟수 = 수업 날짜 - 결강 + 보강, 1회 시간 = 기초반(KA·KB) 1시간·그 외 2시간, 금액 = 시간 × 단가(as_terms.pay_rate, 기본 35,000원)
 -- 금액은 저장하지 않고 항상 시간표에서 계산합니다 (관리자·부관리자만 열람)
 create or replace function as_get_pay(p_token uuid, p_term bigint) returns json
 language plpgsql security definer set search_path = public, extensions as $$
-declare a record;
+declare a record; v_rate int;
 begin
   select * into a from as_auth(p_token);
   if not a.o_admin then raise exception '관리자와 부관리자만 열람할 수 있습니다.'; end if;
+  select pay_rate into v_rate from as_terms where id = p_term;
   return (select coalesce(json_agg(json_build_object(
             'id', c.id, 'title', c.title, 'teacher', t.name, 'pay_account', c.pay_account,
             'grades_text', (select string_agg(g::text, ',' order by g) from unnest(c.grades) g),
             'grade_min', (select min(g) from unnest(c.grades) g),
-            'period', c.period, 'lessons', z.lessons, 'hours', z.lessons * z.hpd, 'amount', z.lessons * z.hpd * 35000
+            'period', c.period, 'lessons', z.lessons, 'hours', z.lessons * z.hpd, 'amount', z.lessons * z.hpd * coalesce(v_rate, 35000)
           ) order by (select min(g) from unnest(c.grades) g), c.title, c.id), '[]'::json)
     from as_courses c
     join as_teachers t on t.id = c.teacher_id
@@ -637,9 +639,7 @@ begin
       select coalesce(array_length(c.dates, 1), 0)
              - (select count(*) from as_class_changes k where k.course_id = c.id)
              + (select count(*) from as_class_changes k where k.course_id = c.id and k.new_date is not null) as lessons,
-             case when c.period like '%교시%'
-                  then greatest((select count(*) from regexp_matches(split_part(c.period, '교시', 1), '[0-9]+', 'g')), 1)
-                  else 2 end as hpd
+             case when c.type_code in ('KA','KB') then 1 else 2 end as hpd
     ) z
    where c.term_id = p_term and c.status <> 'cancelled');
 end $$;
@@ -942,7 +942,8 @@ begin
       course_open  = coalesce((p_term->>'course_open')::boolean, course_open),
       course_open_from = case when (p_term::jsonb) ? 'course_open_from' then nullif(p_term->>'course_open_from', '')::date else course_open_from end,
       course_open_to   = case when (p_term::jsonb) ? 'course_open_to'   then nullif(p_term->>'course_open_to', '')::date   else course_open_to   end,
-      min_students = coalesce(nullif(p_term->>'min_students', '')::int, min_students)
+      min_students = coalesce(nullif(p_term->>'min_students', '')::int, min_students),
+      pay_rate     = coalesce(nullif(p_term->>'pay_rate', '')::int, pay_rate)
     where id = v_id;
     if not found then raise exception '방과후학교를 찾을 수 없습니다.'; end if;
   end if;
