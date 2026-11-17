@@ -49,6 +49,8 @@ on conflict (code) do nothing;
 -- 이전 버전의 기본 유형 정리: 교시 안내 채우기, 예전 '기초반'·'상경진반'은 숨김(기록은 유지)
 update as_types set period = '8·9교시 (16:40~18:30)' where code in ('A','B','G') and period = '';
 update as_types set active = false where code in ('K','S');
+-- 금공반: 선생님이 수강생을 지정하는 강좌로 변경 (학생 직접 신청 불가)
+update as_types set assign_only = true where code = 'G';
 
 -- 방과후학교 운영 단위(예: 2026년 겨울방학, 2027학년도 1학기 …) — 계속 누적됩니다
 create table if not exists as_terms (
