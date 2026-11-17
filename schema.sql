@@ -628,7 +628,7 @@ begin
   if not a.o_admin then raise exception '관리자와 부관리자만 열람할 수 있습니다.'; end if;
   select pay_rate into v_rate from as_terms where id = p_term;
   return (select coalesce(json_agg(json_build_object(
-            'id', c.id, 'title', c.title, 'teacher', t.name, 'pay_account', c.pay_account,
+            'id', c.id, 'title', c.title, 'teacher', t.name, 'pay_account', c.pay_account, 'type_code', c.type_code,
             'grades_text', (select string_agg(g::text, ',' order by g) from unnest(c.grades) g),
             'grade_min', (select min(g) from unnest(c.grades) g),
             'period', c.period, 'lessons', z.lessons, 'hours', z.lessons * z.hpd, 'amount', z.lessons * z.hpd * coalesce(v_rate, 35000)

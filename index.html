@@ -861,17 +861,34 @@ function payView() {
     return '<div class="card"><h2>수당 지급표</h2><p>불러오는 중…</p></div>';
   }
   const rows = PAY.rows;
-  const total = rows.reduce((sum, r) => sum + (r.amount || 0), 0);
+  const CATS = [
+    { key: 'basic', name: '기초반', codes: ['KA', 'KB'] },
+    { key: 'qual', name: '자격(A/B)', codes: ['A', 'B'] },
+    { key: 'gm', name: '금공반', codes: ['G'] },
+    { key: 'civil', name: '공무원반', codes: ['GM'] },
+    { key: 'etc', name: '기타', codes: null },
+  ];
+  const catOf = (r) => CATS.find((c) => c.codes && c.codes.includes(r.type_code)) || CATS[CATS.length - 1];
+  const sumOf = (list) => list.reduce((a, r) => ({ lessons: a.lessons + (r.lessons || 0), hours: a.hours + (r.hours || 0), amount: a.amount + (r.amount || 0) }), { lessons: 0, hours: 0, amount: 0 });
+  const money = (n) => n.toLocaleString() + '원';
+  const groups = CATS.map((c) => ({ ...c, list: rows.filter((r) => catOf(r) === c)})).filter((g) => g.list.length);
+  const total = sumOf(rows);
+  const body = groups.map((g) => {
+    const sub = sumOf(g.list);
+    return g.list.map((r) => `<tr><td>${esc(r.title)}<div class="sub">${esc(r.period || '')}</div></td>
+        <td class="nowrap">${esc(r.grades_text || '')}학년</td>
+        <td class="nowrap">${esc(r.teacher)}</td><td class="nowrap">${r.lessons}회 · ${r.hours}시간</td>
+        <td class="nowrap">${money(r.amount || 0)}</td><td>${r.pay_account ? esc(r.pay_account) : '<span class="tag bad">미등록</span>'}</td></tr>`).join('')
+      + `<tr style="background:#f5f3fb"><td colspan="3"><b>${g.name} 소계</b></td><td class="nowrap"><b>${sub.lessons}회 · ${sub.hours}시간</b></td><td class="nowrap"><b>${money(sub.amount)}</b></td><td></td></tr>`;
+  }).join('');
   return `<div class="card"><div class="row" style="justify-content:space-between"><h2>수당 지급표</h2>
       <button class="small" data-a="payReload">새로고침</button></div>
     <p class="sub">시간표 기준 · 1시간당 ${Number(S.term?.pay_rate ?? 35000).toLocaleString()}원 · 기초반 1시간, 그 외 강좌 2시간 기준 · 수업 시간은 결강·보강을 반영한 실제 수업 횟수입니다.</p>
     <p class="sub">금액은 강좌의 수업 날짜와 결강·보강 기록에서 자동 계산되며, 금액만 따로 고칠 수 없습니다. 금액을 바꾸려면 해당 강좌의 수업 날짜·결강·보강을 고치세요.</p>
     ${PAY.err ? `<p class="tag bad">${esc(PAY.err)}</p>` : ''}
-    ${rows.length ? `<div class="scroll"><table><thead><tr><th>학년</th><th>강좌명</th><th>담당교사</th><th>수업 시간 (결보강 포함)</th><th>금액</th><th>계좌번호</th></tr></thead><tbody>
-      ${rows.map((r) => `<tr><td class="nowrap">${esc(r.grades_text || '')}학년</td><td>${esc(r.title)}<div class="sub">${esc(r.period || '')}</div></td>
-        <td class="nowrap">${esc(r.teacher)}</td><td class="nowrap">${r.lessons}회 · ${r.hours}시간</td>
-        <td class="nowrap">${(r.amount || 0).toLocaleString()}원</td><td>${r.pay_account ? esc(r.pay_account) : '<span class="tag bad">미등록</span>'}</td></tr>`).join('')}
-      <tr><td colspan="4"><b>합계</b></td><td class="nowrap"><b>${total.toLocaleString()}원</b></td><td></td></tr>
+    ${rows.length ? `<div class="scroll"><table><thead><tr><th>강좌명</th><th>학년</th><th>담당교사</th><th>수업 시간 (결보강 포함)</th><th>금액</th><th>계좌번호</th></tr></thead><tbody>
+      ${body}
+      <tr style="background:#ece9f6"><td colspan="3"><b>최종 합계</b></td><td class="nowrap"><b>${total.lessons}회 · ${total.hours}시간</b></td><td class="nowrap"><b>${money(total.amount)}</b></td><td></td></tr>
       </tbody></table></div>` : '<p>이 방과후학교에 개설된 강좌가 없습니다.</p>'}</div>`;
 }
 let AUD = null;   // { key, rows }  변경 기록 캐시 (학기별)
