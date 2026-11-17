@@ -638,7 +638,7 @@ function termsView() {
   const period = (t) => (t.start_date && t.end_date ? `${t.start_date} ~ ${t.end_date}` : '운영 기간 미정');
   return `<div class="hero"><h2 class="disp">${esc(me.name)}${me.role === 'teacher' ? ' 선생님' : ' 학생'}, 환영합니다!</h2></div>
     <div class="yearwrap"><nav class="years" aria-label="학년도 선택">${years.map((y) => `<button data-a="year" data-v="${y}" class="${y === yearSel ? 'on' : ''}"><span class="disp">${y}</span><small>학년도 · ${S.terms.filter((t) => yearOf(t) === y).length}개</small></button>`).join('')}</nav>
-    <div class="terms">${(me.budget_mgr || me.is_super) ? `<button class="term" data-a="budOpen"><span class="tt disp">예산 담당자</span><span class="sub">예산 편성 · 예산 집행 · 사업별 집행률</span><br><span class="go2">들어가기 →</span></button>` : ''}${shown.map((t) => `<button class="term" data-a="term" data-id="${t.id}">
+    <div class="terms">${(me.budget_mgr || me.is_manager || me.is_super) ? `<button class="term" data-a="budOpen"><span class="tt disp">예산 담당자</span><span class="sub">예산 편성 · 예산 집행 · 사업별 집행률</span><br><span class="go2">들어가기 →</span></button>` : ''}${shown.map((t) => `<button class="term" data-a="term" data-id="${t.id}">
         <span class="tt disp">${esc(t.title)}</span><span class="sub">${period(t)}</span><br>
         ${t.enroll_open ? '<span class="tag ok">수강신청 진행 중</span>' : '<span class="tag">수강신청 닫힘</span>'}
         <span class="go2">들어가기 →</span></button>`).join('') || '<div class="card">아직 만들어진 방과후학교가 없습니다.</div>'}</div></div>

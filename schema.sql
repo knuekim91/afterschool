@@ -1197,7 +1197,7 @@ revoke execute on function as_promote(bigint)                    from public, an
 
 -- ===== 예산 담당자: 예산 편성 · 예산 집행 =====
 alter table as_teachers add column if not exists budget_mgr boolean not null default false;  -- 예산 담당자 여부
-update as_teachers set budget_mgr = true where name in ('김지언', '김재홍');
+update as_teachers set budget_mgr = true where name in ('김지언', '김재홍') or is_manager;  -- 부관리자는 모두 담당자
 
 create table if not exists as_budget_plans (
   id         bigint generated always as identity primary key,
@@ -1225,7 +1225,7 @@ declare a record;
 begin
   select * into a from as_auth(p_token);
   if not (a.o_role = 'teacher' and exists (select 1 from as_teachers t
-            where t.id = a.o_uid and (t.budget_mgr or t.is_admin))) then
+            where t.id = a.o_uid and (t.budget_mgr or t.is_admin or t.is_manager))) then
     raise exception '예산 담당자만 사용할 수 있습니다.';
   end if;
 end $$;
