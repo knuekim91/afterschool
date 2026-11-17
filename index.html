@@ -620,11 +620,12 @@ function budgetView() {
       const alloc = plans.filter((p) => p.name === n).reduce((a, p) => a + (p.allocated || 0), 0);
       const spent = execs.filter((e) => ((plans.find((p) => p.id === e.plan_id) || {}).name) === n).reduce((a, e) => a + (e.amount || 0), 0);
       const rate = alloc > 0 ? ((spent / alloc) * 100).toFixed(1) + '%' : '-';
-      return `<tr><td>${esc(n)}</td><td class="nowrap">${money(alloc)}</td><td class="nowrap">${money(spent)}</td><td class="nowrap"><b>${rate}</b></td></tr>`;
+      const c = BUD_COLORS[Math.max(0, names.indexOf(n)) % BUD_COLORS.length];
+      return `<tr style="background:${c.bg};box-shadow:inset 5px 0 0 ${c.bar}"><td><b>${esc(n)}</b></td><td class="nowrap">${money(alloc)}</td><td class="nowrap">${money(spent)}</td><td class="nowrap">${money(alloc - spent)}</td><td class="nowrap"><b>${rate}</b></td></tr>`;
     }).join('');
     body = `<h3>사업별 집행 현황</h3>
-      <div class="scroll"><table><thead><tr><th>사업명</th><th>예산 총액</th><th>집행예산 총액</th><th>집행률</th></tr></thead><tbody>
-      ${rows || '<tr><td colspan="4">편성된 사업이 없습니다.</td></tr>'}</tbody></table></div>
+      <div class="scroll"><table><thead><tr><th>사업명</th><th>예산 총액</th><th>집행예산 총액</th><th>잔액</th><th>집행률</th></tr></thead><tbody>
+      ${rows || '<tr><td colspan="5">편성된 사업이 없습니다.</td></tr>'}</tbody></table></div>
       <h3>${ee ? '집행 내역 수정' : '집행 내역 추가'}</h3>
       ${plans.length ? `<form data-f="budExec">${ee ? `<input type="hidden" name="id" value="${ee.id}">` : ''}<div class="row">
         <div style="flex:2 1 180px"><label>사업명 *</label><select name="plan_id" required>${planOpts}</select></div>
