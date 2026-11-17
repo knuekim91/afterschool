@@ -1245,7 +1245,7 @@ begin
                                                rows between unbounded preceding and current row) as balance
                 from as_budget_execs e join as_budget_plans p on p.id = e.plan_id) x),
     'sweeps', (select coalesce(json_agg(json_build_object('id', w.id, 'plan_name', w.plan_name, 'kind', w.kind, 'label', w.label,
-                 'days', w.days, 'hours', w.hours, 'count', w.count, 'unit_amount', w.unit_amount, 'amount', w.amount) order by w.id), '[]'::json)
+                 'days', w.days, 'hours', w.hours, 'count', w.count, 'unit_amount', w.unit_amount, 'amount', w.amount, 'note', w.note) order by w.id), '[]'::json)
                from as_budget_sweeps w));
 end $$;
 
@@ -1331,6 +1331,7 @@ create table if not exists as_budget_sweeps (
   amount      bigint not null default 0,     -- 예산(자동계산)
   created_at  timestamptz not null default now()
 );
+alter table as_budget_sweeps add column if not exists note text not null default '';  -- 비고
 alter table as_budget_sweeps enable row level security;
 
 create or replace function as_budget_sweep_save(p_token uuid, p_row json) returns bigint
@@ -1350,10 +1351,11 @@ begin
     if v_days <= 0 or v_hours <= 0 then raise exception '수업일수와 하루수업시수를 입력해 주세요.'; end if;
     v_amt := round(v_days * v_hours * 35000);   -- 1시간당 35,000원
     if v_id is null then
-      insert into as_budget_sweeps (plan_name, kind, label, days, hours, amount)
-      values (v_name, 'lecture', v_label, v_days, v_hours, v_amt) returning id into v_id;
+      insert into as_budget_sweeps (plan_name, kind, label, days, hours, amount, note)
+      values (v_name, 'lecture', v_label, v_days, v_hours, v_amt, btrim(coalesce(p_row->>'note', ''))) returning id into v_id;
     else
-      update as_budget_sweeps set plan_name = v_name, label = v_label, days = v_days, hours = v_hours, amount = v_amt
+      update as_budget_sweeps set plan_name = v_name, label = v_label, days = v_days, hours = v_hours, amount = v_amt,
+             note = btrim(coalesce(p_row->>'note', ''))
        where id = v_id and kind = 'lecture';
       if not found then raise exception '항목을 찾을 수 없습니다.'; end if;
     end if;
@@ -1363,10 +1365,11 @@ begin
     if v_count <= 0 or v_unit <= 0 then raise exception '개수와 금액을 입력해 주세요.'; end if;
     v_amt := v_count * v_unit;
     if v_id is null then
-      insert into as_budget_sweeps (plan_name, kind, label, count, unit_amount, amount)
-      values (v_name, 'item', v_label, v_count, v_unit, v_amt) returning id into v_id;
+      insert into as_budget_sweeps (plan_name, kind, label, count, unit_amount, amount, note)
+      values (v_name, 'item', v_label, v_count, v_unit, v_amt, btrim(coalesce(p_row->>'note', ''))) returning id into v_id;
     else
-      update as_budget_sweeps set plan_name = v_name, label = v_label, count = v_count, unit_amount = v_unit, amount = v_amt
+      update as_budget_sweeps set plan_name = v_name, label = v_label, count = v_count, unit_amount = v_unit, amount = v_amt,
+             note = btrim(coalesce(p_row->>'note', ''))
        where id = v_id and kind = 'item';
       if not found then raise exception '항목을 찾을 수 없습니다.'; end if;
     end if;

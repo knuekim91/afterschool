@@ -675,21 +675,23 @@ function budgetView() {
         <div style="flex:2 1 200px"><label>강좌명 *</label><input name="label" required value="${esc(es?.label || '')}"></div>
         <div><label>수업일수 *</label><input name="days" type="number" min="1" step="1" required value="${es?.days ?? ''}"></div>
         <div><label>하루수업시수 *</label><input name="hours" type="number" min="0.5" step="0.5" required value="${es?.hours ?? ''}"></div>
+        <div style="flex:2 1 160px"><label>비고</label><input name="note" value="${esc(es?.note || '')}"></div>
         <div><label>예산 (자동계산)</label><div data-preview style="padding:10px 0;font-weight:700;text-align:right">${money(es ? es.amount : 0)}</div></div>
         <div style="flex:0 0 auto">${sb(es)}</div></div></form>`;
-      table = `<thead><tr><th>강좌명</th><th>수업일수</th><th>하루수업시수</th><th style="text-align:right">예산</th><th></th></tr></thead><tbody>
-        ${rowsS.map((w) => `<tr><td>${esc(w.label)}</td><td class="nowrap">${w.days}일</td><td class="nowrap">${w.hours}시간</td>
-          <td class="nowrap" style="text-align:right">${money(w.amount)}</td><td class="nowrap">${actS(w.id)}</td></tr>`).join('') || '<tr><td colspan="5">입력된 강좌가 없습니다.</td></tr>'}</tbody>`;
+      table = `<thead><tr><th>강좌명</th><th>수업일수</th><th>하루수업시수</th><th>비고</th><th style="text-align:right">예산</th><th></th></tr></thead><tbody>
+        ${rowsS.map((w) => `<tr><td>${esc(w.label)}</td><td class="nowrap">${w.days}일</td><td class="nowrap">${w.hours}시간</td><td>${esc(w.note || '')}</td>
+          <td class="nowrap" style="text-align:right">${money(w.amount)}</td><td class="nowrap">${actS(w.id)}</td></tr>`).join('') || '<tr><td colspan="6">입력된 강좌가 없습니다.</td></tr>'}</tbody>`;
     } else {
       form = `<form data-f="budSweep" data-sweep-kind="item"><input type="hidden" name="plan_name" value="${esc(sel)}"><input type="hidden" name="kind" value="item">${es ? `<input type="hidden" name="id" value="${es.id}">` : ''}<div class="row">
         <div style="flex:2 1 200px"><label>세부항목 *</label><input name="label" required value="${esc(es?.label || '')}"></div>
         <div><label>개수 *</label><input name="count" type="number" min="1" step="1" required value="${es?.count ?? ''}"></div>
         <div><label>금액 (원) *</label><input name="unit_amount" type="text" inputmode="numeric" data-money required value="${es ? fmtMoney(es.unit_amount) : ''}"></div>
+        <div style="flex:2 1 160px"><label>비고</label><input name="note" value="${esc(es?.note || '')}"></div>
         <div><label>예산 (자동계산)</label><div data-preview style="padding:10px 0;font-weight:700;text-align:right">${money(es ? es.amount : 0)}</div></div>
         <div style="flex:0 0 auto">${sb(es)}</div></div></form>`;
-      table = `<thead><tr><th>세부항목</th><th>개수</th><th style="text-align:right">금액</th><th style="text-align:right">예산</th><th></th></tr></thead><tbody>
+      table = `<thead><tr><th>세부항목</th><th>개수</th><th style="text-align:right">금액</th><th>비고</th><th style="text-align:right">예산</th><th></th></tr></thead><tbody>
         ${rowsS.map((w) => `<tr><td>${esc(w.label)}</td><td class="nowrap">${w.count}</td>
-          <td class="nowrap" style="text-align:right">${money(w.unit_amount)}</td><td class="nowrap" style="text-align:right">${money(w.amount)}</td><td class="nowrap">${actS(w.id)}</td></tr>`).join('') || '<tr><td colspan="5">입력된 항목이 없습니다.</td></tr>'}</tbody>`;
+          <td class="nowrap" style="text-align:right">${money(w.unit_amount)}</td><td>${esc(w.note || '')}</td><td class="nowrap" style="text-align:right">${money(w.amount)}</td><td class="nowrap">${actS(w.id)}</td></tr>`).join('') || '<tr><td colspan="6">입력된 항목이 없습니다.</td></tr>'}</tbody>`;
     }
     const pick = `<select name="sweep_name" style="max-width:360px">${names.map((n) => `<option value="${esc(n)}" ${n === sel ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select>`;
     const footer = kind ? `<div class="row" style="justify-content:flex-end;gap:28px;margin-top:12px;padding:12px 16px;background:#f5f3fb;border-radius:10px">
@@ -1704,7 +1706,7 @@ const A = {
 };
 
 const F = {
-  budSweep: (fd) => run(async () => { budSweepName = fd.get('plan_name'); budEdit = null; await api('as_budget_sweep_save', { p_row: { id: fd.get('id') || null, plan_name: fd.get('plan_name'), kind: fd.get('kind'), label: fd.get('label'), days: fd.get('days') || 0, hours: fd.get('hours') || 0, count: fd.get('count') || 0, unit_amount: unMoney(fd.get('unit_amount')) || 0 } }); BUD = null; render(); }, '추가되었습니다.'),
+  budSweep: (fd) => run(async () => { budSweepName = fd.get('plan_name'); budEdit = null; await api('as_budget_sweep_save', { p_row: { id: fd.get('id') || null, plan_name: fd.get('plan_name'), kind: fd.get('kind'), label: fd.get('label'), days: fd.get('days') || 0, hours: fd.get('hours') || 0, count: fd.get('count') || 0, unit_amount: unMoney(fd.get('unit_amount')) || 0, note: fd.get('note') || '' } }); BUD = null; render(); }, '추가되었습니다.'),
   budPlan: (fd) => run(async () => { await api('as_budget_save_plan', { p_plan: { id: fd.get('id') || null, name: fd.get('name'), plan_date: fd.get('plan_date') || null, allocated: unMoney(fd.get('allocated')), note: fd.get('note') || '' } }); budEdit = null; BUD = null; render(); }, '저장되었습니다.'),
   budExec: (fd) => run(async () => { await api('as_budget_save_exec', { p_exec: { id: fd.get('id') || null, plan_id: fd.get('plan_id'), detail: fd.get('detail'), exec_date: fd.get('exec_date') || null, amount: unMoney(fd.get('amount')), note: fd.get('note') || '' } }); budEdit = null; BUD = null; render(); }, '저장되었습니다.'),
   login: (fd) => run(async () => {
