@@ -693,13 +693,14 @@ function budgetView() {
         ${rowsS.map((w) => `<tr><td>${esc(w.label)}</td><td class="nowrap">${w.count}</td>
           <td class="nowrap" style="text-align:right">${money(w.unit_amount)}</td><td>${esc(w.note || '')}</td><td class="nowrap" style="text-align:right">${money(w.amount)}</td><td class="nowrap">${actS(w.id)}</td></tr>`).join('') || '<tr><td colspan="6">입력된 항목이 없습니다.</td></tr>'}</tbody>`;
     }
+    const editNote = es ? `<p class="tag ok" style="margin:0 0 8px">수정 중: ${esc(es.label)} — 저장하면 이 항목이 바뀝니다. 새로 추가하려면 [취소]를 누르세요.</p>` : '';
     const pick = `<select name="sweep_name" style="max-width:360px">${names.map((n) => `<option value="${esc(n)}" ${n === sel ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select>`;
     const footer = kind ? `<div class="row" style="justify-content:flex-end;gap:28px;margin-top:12px;padding:12px 16px;background:#f5f3fb;border-radius:10px">
         <div style="text-align:right"><div class="sub">총합계</div><b>${money(total)}</b></div>
         <div style="text-align:right"><div class="sub">${esc(sel)} 잔액</div><b>${money(remain)}</b></div>
         <div style="text-align:right"><div class="sub">최종잔액</div><b style="${finalBal < 0 ? 'color:#c0392b' : ''}">${money(finalBal)}</b></div></div>` : '';
     body = `<div style="margin-bottom:10px"><label>편성된 사업명 선택</label>${pick}</div>
-      ${form}
+      ${editNote}${form}
       ${table ? `<div class="scroll" style="margin-top:12px"><table>${table}</table></div>` : ''}
       ${footer}`;
   }
