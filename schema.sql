@@ -119,6 +119,7 @@ create table if not exists as_sessions (
 alter table as_terms add column if not exists course_open_from date;   -- 강좌 개설·수정 허용 기간 시작 (비워 두면 course_open 체크값을 따름)
 alter table as_terms add column if not exists course_open_to   date;   -- 강좌 개설·수정 허용 기간 끝
 alter table as_courses add column if not exists term_id bigint references as_terms(id);
+alter table as_courses add column if not exists pay_account text not null default '';   -- 강사 수당 입금 계좌 (강좌 개설 시 등록)
 do $$
 declare v bigint; s record;
 begin
@@ -458,7 +459,7 @@ begin
                'grades', c.grades, 'capacity', c.capacity, 'status', c.status, 'dates', c.dates,
                'days', coalesce(c.days, ty.days), 'period', c.period,
                'target', c.target, 'level', c.level, 'textbook', c.textbook, 'goals', c.goals,
-               'hours', c.hours, 'contents', c.contents,
+               'hours', c.hours, 'contents', c.contents, 'pay_account', c.pay_account,
                'enrolled', (select count(*) from as_enrollments e where e.course_id = c.id),
                'waiting',  (select count(*) from as_waitlist w where w.course_id = c.id)
              ) order by ty.sort, c.title, c.id), '[]'::json)
@@ -616,12 +617,39 @@ begin
 end $$;
 
 -- ---------- 교사: 강좌 개설 / 학생 지정 ----------------------------------
+-- 수당 지급표: 강좌별 수업 횟수 = 수업 날짜 - 결강 + 보강, 1회 시간 = 교시 수(8·9교시 → 2시간), 금액 = 시간 × 35,000원
+-- 금액은 저장하지 않고 항상 시간표에서 계산합니다 (관리자·부관리자만 열람)
+create or replace function as_get_pay(p_token uuid, p_term bigint) returns json
+language plpgsql security definer set search_path = public, extensions as $$
+declare a record;
+begin
+  select * into a from as_auth(p_token);
+  if not a.o_admin then raise exception '관리자와 부관리자만 열람할 수 있습니다.'; end if;
+  return (select coalesce(json_agg(json_build_object(
+            'id', c.id, 'title', c.title, 'teacher', t.name, 'pay_account', c.pay_account,
+            'grades_text', (select string_agg(g::text, ',' order by g) from unnest(c.grades) g),
+            'grade_min', (select min(g) from unnest(c.grades) g),
+            'period', c.period, 'lessons', z.lessons, 'hours', z.lessons * z.hpd, 'amount', z.lessons * z.hpd * 35000
+          ) order by (select min(g) from unnest(c.grades) g), c.title, c.id), '[]'::json)
+    from as_courses c
+    join as_teachers t on t.id = c.teacher_id
+    cross join lateral (
+      select coalesce(array_length(c.dates, 1), 0)
+             - (select count(*) from as_class_changes k where k.course_id = c.id)
+             + (select count(*) from as_class_changes k where k.course_id = c.id and k.new_date is not null) as lessons,
+             case when c.period like '%교시%'
+                  then greatest((select count(*) from regexp_matches(split_part(c.period, '교시', 1), '[0-9]+', 'g')), 1)
+                  else 2 end as hpd
+    ) z
+   where c.term_id = p_term and c.status <> 'cancelled');
+end $$;
+
 create or replace function as_save_course(p_token uuid, p_course json) returns bigint
 language plpgsql security definer set search_path = public, extensions as $$
 declare
   a record; v_id bigint; v_teacher bigint; v_term bigint; old as_courses%rowtype;
   v_type text; v_title text; v_grades int[]; v_dates date[]; v_cap int; v_days int[]; v_period text;
-  v_target text; v_level text; v_book text; v_goals text; v_hours numeric; v_contents jsonb;
+  v_target text; v_level text; v_book text; v_goals text; v_hours numeric; v_contents jsonb; v_pay text;
 begin
   select * into a from as_auth(p_token);
   if a.o_role <> 'teacher' then raise exception '교사만 사용할 수 있습니다.'; end if;
@@ -653,6 +681,8 @@ begin
   v_book   := btrim(coalesce(p_course->>'textbook', ''));
   v_goals  := coalesce(p_course->>'goals', '');
   v_hours  := nullif(p_course->>'hours', '')::numeric;
+  v_pay    := btrim(coalesce(p_course->>'pay_account', ''));
+  if v_pay = '' then raise exception '입금 계좌번호를 입력해 주세요.'; end if;
   -- 날짜별 수업 내용: 강의 날짜에 있는 날만 남깁니다
   select coalesce(jsonb_object_agg(k, v), '{}'::jsonb) into v_contents
     from jsonb_each_text(coalesce((p_course->'contents')::jsonb, '{}'::jsonb)) as e(k, v)
@@ -671,9 +701,9 @@ begin
 
   if v_id is null then
     insert into as_courses (term_id, type_code, title, teacher_id, room, grades, capacity, dates, days, period,
-                            target, level, textbook, goals, hours, contents)
+                            target, level, textbook, goals, hours, contents, pay_account)
     values (v_term, v_type, v_title, coalesce(v_teacher, a.o_uid), coalesce(p_course->>'room', ''), v_grades, v_cap, v_dates, v_days, v_period,
-            v_target, v_level, v_book, v_goals, v_hours, v_contents)
+            v_target, v_level, v_book, v_goals, v_hours, v_contents, v_pay)
     returning id into v_id;
   else
     select * into old from as_courses where id = v_id for update;
@@ -689,7 +719,8 @@ begin
        set type_code = v_type, title = v_title, teacher_id = coalesce(v_teacher, old.teacher_id),
            room = coalesce(p_course->>'room', ''), grades = v_grades, capacity = v_cap, dates = v_dates,
            days = v_days, period = v_period,
-           target = v_target, level = v_level, textbook = v_book, goals = v_goals, hours = v_hours, contents = v_contents
+           target = v_target, level = v_level, textbook = v_book, goals = v_goals, hours = v_hours, contents = v_contents,
+           pay_account = v_pay
      where id = v_id;
     -- 강좌 수정에서 날짜를 직접 바꾼 경우 결강·보강 기록을 맞춤
     delete from as_class_changes where course_id = v_id and orig_date = any (v_dates);          -- 결강일을 다시 넣음 → 결강 취소

@@ -403,6 +403,7 @@ function currentTerm(terms) {
               .sort((x, y) => (x.start_date < y.start_date ? 1 : -1))[0] || null;
 }
 async function refresh() {
+  PAY = null;   // 수당 지급표는 강좌·시간표가 바뀔 수 있으니 다시 불러옴
   S = await api('as_get_state', { p_term: termId });
   if (termId && !S.term) setTerm(null);
   normState(S);
@@ -848,6 +849,31 @@ function resultHtml() {
 }
 
 /* ---------------------------------------------------------- 변경 기록 */
+let PAY = null;   // { key, rows }  수당 지급표 캐시 (학기별)
+function payView() {
+  if (!PAY || PAY.key !== termId) {
+    if (!PAY || PAY.key !== termId) {
+      PAY = { key: termId, rows: null };
+      api('as_get_pay', { p_term: termId })
+        .then((rows) => { PAY = { key: termId, rows: rows || [] }; render(); })
+        .catch((e) => { PAY = { key: termId, rows: [], err: e.message }; render(); });
+    }
+    return '<div class="card"><h2>수당 지급표</h2><p>불러오는 중…</p></div>';
+  }
+  const rows = PAY.rows;
+  const total = rows.reduce((sum, r) => sum + (r.amount || 0), 0);
+  return `<div class="card"><div class="row" style="justify-content:space-between"><h2>수당 지급표</h2>
+      <button class="small" data-a="payReload">새로고침</button></div>
+    <p class="sub">시간표 기준 · 1시간당 35,000원 · 수업 시간은 결강·보강을 반영한 실제 수업 횟수입니다.</p>
+    <p class="sub">금액은 강좌의 수업 날짜와 결강·보강 기록에서 자동 계산되며, 금액만 따로 고칠 수 없습니다. 금액을 바꾸려면 해당 강좌의 수업 날짜·결강·보강을 고치세요.</p>
+    ${PAY.err ? `<p class="tag bad">${esc(PAY.err)}</p>` : ''}
+    ${rows.length ? `<div class="scroll"><table><thead><tr><th>학년</th><th>강좌명</th><th>담당교사</th><th>수업 시간 (결보강 포함)</th><th>금액</th><th>계좌번호</th></tr></thead><tbody>
+      ${rows.map((r) => `<tr><td class="nowrap">${esc(r.grades_text || '')}학년</td><td>${esc(r.title)}<div class="sub">${esc(r.period || '')}</div></td>
+        <td class="nowrap">${esc(r.teacher)}</td><td class="nowrap">${r.lessons}회 · ${r.hours}시간</td>
+        <td class="nowrap">${(r.amount || 0).toLocaleString()}원</td><td>${r.pay_account ? esc(r.pay_account) : '<span class="tag bad">미등록</span>'}</td></tr>`).join('')}
+      <tr><td colspan="4"><b>합계</b></td><td class="nowrap"><b>${total.toLocaleString()}원</b></td><td></td></tr>
+      </tbody></table></div>` : '<p>이 방과후학교에 개설된 강좌가 없습니다.</p>'}</div>`;
+}
 let AUD = null;   // { key, rows }  변경 기록 캐시 (학기별)
 function auditView() {
   if (!AUD || AUD.key !== termId) {
@@ -882,10 +908,10 @@ function courseOpenNow(t) {
 function teacherView() {
   const tabs = [['my', '내 강좌'], ['all', '전체 강좌'], ['cls', '반별 수강 현황']];
   if (S.me.hr_grade) tabs.splice(1, 0, ['hr', `우리 반 (${S.me.hr_grade}-${S.me.hr_class})`]);
-  if (isAdmin()) tabs.push(['dash', '운영 현황'], ['att', '출석부 전체'], ['plan', '강의계획서 전체'], ['people', '명단 관리'], ['audit', '변경 기록']);
+  if (isAdmin()) tabs.push(['dash', '운영 현황'], ['att', '출석부 전체'], ['plan', '강의계획서 전체'], ['people', '명단 관리'], ['pay', '수당 지급표'], ['audit', '변경 기록']);
   if (isSuper()) tabs.push(['set', '일정·설정']);
   if (!tabs.some((t) => t[0] === tab)) tab = 'my';
-  const body = { audit: auditView, dash: dashView, my: myCoursesView, hr: homeroomView, att: attAllView, plan: planAllView, all: allCoursesView, cls: classView, people: peopleView, set: settingsView }[tab]();
+  const body = { pay: payView, audit: auditView, dash: dashView, my: myCoursesView, hr: homeroomView, att: attAllView, plan: planAllView, all: allCoursesView, cls: classView, people: peopleView, set: settingsView }[tab]();
   return `<div class="tabs">${tabs.map(([k, n]) => `<button data-a="tab" data-v="${k}" class="${tab === k ? 'on' : ''}">${n}</button>`).join('')}</div>${body}`;
 }
 function statusTag(c) {
@@ -1220,6 +1246,7 @@ function courseForm(c) {
       <div class="row"><div><label>강의실 <span class="req">*</span></label><input name="room" value="${esc(c.room)}"></div>
         <div><label>정원 (비우면 제한 없음)</label><input name="capacity" type="number" min="1" value="${c.capacity ?? ''}"></div>
         ${isAdmin() ? `<div><label>담당 교사</label><select name="teacher_id">${S.teachers.map((t) => `<option value="${t.id}" ${t.id === c.teacher_id ? 'selected' : ''}>${esc(t.name)}</option>`).join('')}</select></div>` : ''}</div>
+      <div class="row"><div style="flex:2 1 260px"><label>입금 계좌번호 <span class="req">*</span> (강사 수당을 입금받을 계좌)</label><input name="pay_account" value="${esc(c.pay_account || '')}" placeholder="예: 농협 301-0000-0000-00 홍길동"></div></div>
       <div class="row"><div><label>수업 요일 <span class="req">*</span> (이 강좌가 열리는 요일만 고르세요)</label>
           <div>${[1, 2, 3, 4, 5].map((d) => `<label style="display:inline-block;margin-right:12px;color:inherit;font-size:15px"><input type="checkbox" name="days" value="${d}" data-c="formDay" ${c.days.includes(d) ? 'checked' : ''}> ${DAY[d]}</label>`).join('')}</div></div>
         <div><label>교시·시간 <span class="req">*</span></label><input name="period" value="${esc(c.period || '')}" placeholder="예: 8·9교시 (16:40~18:30)"></div></div>
@@ -1267,7 +1294,7 @@ function saveCourse(fd, draft) {
       target: fd.get('target') || '', level: fd.get('level') || '', textbook: fd.get('textbook') || '', goals: fd.get('goals') || '',
       hours: fd.get('hours') || null, contents,
       id: fd.get('id') || null, term_id: termId, type_code: fd.get('type_code'), title: fd.get('title'), room: fd.get('room') || '',
-      capacity: fd.get('capacity') || null, teacher_id: fd.get('teacher_id') || null,
+      capacity: fd.get('capacity') || null, teacher_id: fd.get('teacher_id') || null, pay_account: fd.get('pay_account') || '',
       grades: fd.getAll('grades').map(Number), days: fd.getAll('days').map(Number), period: fd.get('period') || '', dates } });
     closeModal(); await refresh();
   }, draft ? '임시 저장했습니다. 나머지 항목도 채워서 [제출]해 주세요.' : '제출(저장)되었습니다.');
@@ -1409,6 +1436,7 @@ const A = {
   waitOn: (el) => run(async () => { const n = await api('as_wait', { p_course: +el.dataset.id }); await refresh(); toast(`대기 ${n}번째로 등록했습니다. 자리가 나면 자동 신청됩니다.`); }),
   waitOff: (el) => run(async () => { await api('as_unwait', { p_course: +el.dataset.id }); await refresh(); }, '대기를 취소했습니다.'),
   auditReload: () => { AUD = null; render(); },
+  payReload: () => { PAY = null; render(); },
   cancel: (el) => { if (confirm('신청을 취소할까요?')) run(async () => { await api('as_cancel_enroll', { p_course: +el.dataset.id }); await refresh(); }, '취소되었습니다.'); },
   courseNew: () => { openModal(courseForm(null)); fillDates(null, $('#modal [name=type_code]').value); },
   courseEdit: (el) => { const c = courseById(+el.dataset.id); openModal(courseForm(c)); fillDates(c.dates.length ? c.dates : null, c.type_code, c.days, c.contents); },
