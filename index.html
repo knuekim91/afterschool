@@ -580,13 +580,25 @@ const unMoney = (v) => String(v ?? '').replace(/,/g, '');
 document.addEventListener('input', (e) => {
   const t = e.target;
   if (t && t.matches && t.matches('input[data-money]')) t.value = fmtMoney(t.value);
+  const f = t && t.form;
+  if (f && f.dataset && f.dataset.sweepKind) {   // 남은 예산 털기: 입력 즉시 예산 미리보기
+    const q = (n) => (f.querySelector(`[name=${n}]`) || {}).value || '';
+    const v = f.dataset.sweepKind === 'lecture' ? Math.round((+q('days') || 0) * (+q('hours') || 0) * 35000)
+                                                : (+q('count') || 0) * (+unMoney(q('unit_amount')) || 0);
+    const out = f.querySelector('[data-preview]');
+    if (out) out.textContent = v.toLocaleString() + '원';
+  }
+});
+document.addEventListener('change', (e) => {
+  const t = e.target;
+  if (t && t.matches && t.matches('select[name="sweep_name"]')) { budSweepName = t.value; render(); }
 });
 // 사업명마다 다른 배경색으로 집행 내역을 구분합니다
 const BUD_COLORS = [
   { bg: '#eef4ff', bar: '#4f7ddb' }, { bg: '#fff4e8', bar: '#e8903a' }, { bg: '#eefbf1', bar: '#3fa860' },
   { bg: '#fdf0f7', bar: '#c74b8f' }, { bg: '#f3f0ff', bar: '#7c5ccc' }, { bg: '#fff9e0', bar: '#c9a200' },
 ];
-let budgetOn = false, BUD = null, budTab = 'plan', budEdit = null;
+let budgetOn = false, BUD = null, budTab = 'plan', budEdit = null, budSweepName = null;
 function loadBud() {
   api('as_budget_get', {}).then((d) => { BUD = d; render(); })
     .catch((e) => { BUD = { err: e.message, plans: [], execs: [] }; render(); });
@@ -596,6 +608,7 @@ function budgetView() {
   const plans = BUD.plans || [], execs = BUD.execs || [];
   const money = (n) => (n || 0).toLocaleString() + '원';
   const tab = (v, l) => `<button class="${budTab === v ? 'pri' : ''}" data-a="budTab" data-v="${v}">${l}</button>`;
+  const sweeps = BUD.sweeps || [];
   const ed = budEdit || {};
   const ep = ed.kind === 'plan' ? plans.find((p) => p.id === ed.id) : null;
   const ee = ed.kind === 'exec' ? execs.find((e) => e.id === ed.id) : null;
@@ -615,7 +628,7 @@ function budgetView() {
       ${plans.map((p) => `<tr><td>${esc(p.name)}</td><td class="nowrap">${p.plan_date || ''}</td><td class="nowrap" style="text-align:right">${money(p.allocated)}</td><td>${esc(p.note)}</td>
         <td class="nowrap">${actBtns('plan', p.id)}</td></tr>`).join('') || '<tr><td colspan="5">편성된 예산이 없습니다.</td></tr>'}
       </tbody></table></div>`;
-  } else {
+  } else if (budTab === 'exec') {
     const rows = names.map((n) => {
       const alloc = plans.filter((p) => p.name === n).reduce((a, p) => a + (p.allocated || 0), 0);
       const spent = execs.filter((e) => ((plans.find((p) => p.id === e.plan_id) || {}).name) === n).reduce((a, e) => a + (e.amount || 0), 0);
@@ -642,11 +655,54 @@ function budgetView() {
         <td class="nowrap" style="text-align:right;${e.balance < 0 ? 'color:#c0392b;font-weight:700' : ''}">${money(e.balance)}</td><td>${esc(e.note)}</td>
         <td class="nowrap">${actBtns('exec', e.id)}</td></tr>`; }).join('') || '<tr><td colspan="7">집행 내역이 없습니다.</td></tr>'}
       </tbody></table></div>`;
+  } else {
+    const sel = budSweepName && names.includes(budSweepName) ? budSweepName : (names[0] || '');
+    const kind = sel.includes('강사비') ? 'lecture' : (sel.includes('교육운영비') ? 'item' : null);
+    const alloc = plans.filter((p) => p.name === sel).reduce((a, p) => a + (p.allocated || 0), 0);
+    const spent = execs.filter((e) => ((plans.find((p) => p.id === e.plan_id) || {}).name) === sel).reduce((a, e) => a + (e.amount || 0), 0);
+    const remain = alloc - spent;
+    const rowsS = sweeps.filter((w) => w.plan_name === sel);
+    const total = rowsS.reduce((a, w) => a + (w.amount || 0), 0);
+    const finalBal = remain - total;
+    const delBtn = (id) => `<button class="danger small" data-a="budDel" data-k="sweep" data-id="${id}">삭제</button>`;
+    let form = '', table = '';
+    if (!sel) form = '<p class="sub">먼저 예산 편성에서 사업을 추가해 주세요.</p>';
+    else if (!kind) form = `<p class="sub">'${esc(sel)}' 사업은 아직 남은 예산 털기 형식이 없습니다. 강사비 또는 교육운영비 사업만 입력할 수 있습니다.</p>`;
+    else if (kind === 'lecture') {
+      form = `<form data-f="budSweep" data-sweep-kind="lecture"><input type="hidden" name="plan_name" value="${esc(sel)}"><input type="hidden" name="kind" value="lecture"><div class="row">
+        <div style="flex:2 1 200px"><label>강좌명 *</label><input name="label" required></div>
+        <div><label>수업일수 *</label><input name="days" type="number" min="1" step="1" required></div>
+        <div><label>하루수업시수 *</label><input name="hours" type="number" min="0.5" step="0.5" required></div>
+        <div><label>예산 (자동계산)</label><div data-preview style="padding:10px 0;font-weight:700;text-align:right">0원</div></div>
+        <div style="flex:0 0 auto"><button class="pri">추가하기</button></div></div></form>`;
+      table = `<thead><tr><th>강좌명</th><th>수업일수</th><th>하루수업시수</th><th style="text-align:right">예산</th><th></th></tr></thead><tbody>
+        ${rowsS.map((w) => `<tr><td>${esc(w.label)}</td><td class="nowrap">${w.days}일</td><td class="nowrap">${w.hours}시간</td>
+          <td class="nowrap" style="text-align:right">${money(w.amount)}</td><td class="nowrap">${delBtn(w.id)}</td></tr>`).join('') || '<tr><td colspan="5">입력된 강좌가 없습니다.</td></tr>'}</tbody>`;
+    } else {
+      form = `<form data-f="budSweep" data-sweep-kind="item"><input type="hidden" name="plan_name" value="${esc(sel)}"><input type="hidden" name="kind" value="item"><div class="row">
+        <div style="flex:2 1 200px"><label>세부항목 *</label><input name="label" required></div>
+        <div><label>개수 *</label><input name="count" type="number" min="1" step="1" required></div>
+        <div><label>금액 (원) *</label><input name="unit_amount" type="text" inputmode="numeric" data-money required></div>
+        <div><label>예산 (자동계산)</label><div data-preview style="padding:10px 0;font-weight:700;text-align:right">0원</div></div>
+        <div style="flex:0 0 auto"><button class="pri">추가하기</button></div></div></form>`;
+      table = `<thead><tr><th>세부항목</th><th>개수</th><th style="text-align:right">금액</th><th style="text-align:right">예산</th><th></th></tr></thead><tbody>
+        ${rowsS.map((w) => `<tr><td>${esc(w.label)}</td><td class="nowrap">${w.count}</td>
+          <td class="nowrap" style="text-align:right">${money(w.unit_amount)}</td><td class="nowrap" style="text-align:right">${money(w.amount)}</td><td class="nowrap">${delBtn(w.id)}</td></tr>`).join('') || '<tr><td colspan="5">입력된 항목이 없습니다.</td></tr>'}</tbody>`;
+    }
+    const pick = `<select name="sweep_name" style="max-width:360px">${names.map((n) => `<option value="${esc(n)}" ${n === sel ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select>`;
+    const footer = kind ? `<div class="row" style="justify-content:flex-end;gap:28px;margin-top:12px;padding:12px 16px;background:#f5f3fb;border-radius:10px">
+        <div style="text-align:right"><div class="sub">총합계</div><b>${money(total)}</b></div>
+        <div style="text-align:right"><div class="sub">${esc(sel)} 잔액</div><b>${money(remain)}</b></div>
+        <div style="text-align:right"><div class="sub">최종잔액</div><b style="${finalBal < 0 ? 'color:#c0392b' : ''}">${money(finalBal)}</b></div></div>` : '';
+    body = `<div style="margin-bottom:10px"><label>편성된 사업명 선택</label>${pick}</div>
+      ${form}
+      ${table ? `<div class="scroll" style="margin-top:12px"><table>${table}</table></div>` : ''}
+      ${footer}`;
   }
   return `<div class="crumb"><button data-a="budgetBack">← 방과후학교 목록으로</button><span class="disp">예산 담당자</span></div>
     <div class="card"><div class="row" style="justify-content:space-between"><h2 class="disp">예산 담당자</h2><button class="small" data-a="budgetBack">목록으로</button></div>
       ${BUD.err ? `<p class="tag bad">${esc(BUD.err)}</p>` : ''}
-      <div class="row" style="gap:8px;margin-bottom:12px">${tab('plan', '예산 편성')}${tab('exec', '예산 집행')}</div>
+      <div class="row" style="gap:8px;margin-bottom:12px">${tab('plan', '예산 편성')}${tab('exec', '예산 집행')}${tab('sweep', '남은예산털기')}</div>
       ${body}</div>`;
 }
 function termsView() {
@@ -1529,7 +1585,7 @@ const A = {
   budTab: (el) => { budTab = el.dataset.v; budEdit = null; render(); },
   budEdit: (el) => { budEdit = { kind: el.dataset.k, id: +el.dataset.id }; render(); window.scrollTo(0, 0); },
   budCancel: () => { budEdit = null; render(); },
-  budDel: (el) => { if (!confirm(el.dataset.k === 'plan' ? '이 사업과 그 집행 내역을 모두 삭제할까요?' : '이 집행 내역을 삭제할까요?')) return;
+  budDel: (el) => { if (!confirm(el.dataset.k === 'plan' ? '이 사업과 그 집행 내역을 모두 삭제할까요?' : (el.dataset.k === 'sweep' ? '이 항목을 삭제할까요?' : '이 집행 내역을 삭제할까요?'))) return;
     run(async () => { await api('as_budget_delete', { p_kind: el.dataset.k, p_id: +el.dataset.id }); BUD = null; render(); }, '삭제되었습니다.'); },
   logout: async () => { try { await api('as_logout'); } catch (e) {} setToken(null); setTerm(null); S = R = null; intro = false; closeModal(); render(); },
   pwOpen: () => openModal(pwForm(false)),
@@ -1646,6 +1702,7 @@ const A = {
 };
 
 const F = {
+  budSweep: (fd) => run(async () => { budSweepName = fd.get('plan_name'); await api('as_budget_sweep_save', { p_row: { plan_name: fd.get('plan_name'), kind: fd.get('kind'), label: fd.get('label'), days: fd.get('days') || 0, hours: fd.get('hours') || 0, count: fd.get('count') || 0, unit_amount: unMoney(fd.get('unit_amount')) || 0 } }); BUD = null; render(); }, '추가되었습니다.'),
   budPlan: (fd) => run(async () => { await api('as_budget_save_plan', { p_plan: { id: fd.get('id') || null, name: fd.get('name'), plan_date: fd.get('plan_date') || null, allocated: unMoney(fd.get('allocated')), note: fd.get('note') || '' } }); budEdit = null; BUD = null; render(); }, '저장되었습니다.'),
   budExec: (fd) => run(async () => { await api('as_budget_save_exec', { p_exec: { id: fd.get('id') || null, plan_id: fd.get('plan_id'), detail: fd.get('detail'), exec_date: fd.get('exec_date') || null, amount: unMoney(fd.get('amount')), note: fd.get('note') || '' } }); budEdit = null; BUD = null; render(); }, '저장되었습니다.'),
   login: (fd) => run(async () => {

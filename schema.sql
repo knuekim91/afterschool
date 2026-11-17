@@ -1243,7 +1243,10 @@ begin
                        (select sum(p2.allocated) from as_budget_plans p2 where p2.name = p.name)
                          - sum(e.amount) over (partition by p.name order by e.exec_date nulls last, e.id
                                                rows between unbounded preceding and current row) as balance
-                from as_budget_execs e join as_budget_plans p on p.id = e.plan_id) x));
+                from as_budget_execs e join as_budget_plans p on p.id = e.plan_id) x),
+    'sweeps', (select coalesce(json_agg(json_build_object('id', w.id, 'plan_name', w.plan_name, 'kind', w.kind, 'label', w.label,
+                 'days', w.days, 'hours', w.hours, 'count', w.count, 'unit_amount', w.unit_amount, 'amount', w.amount) order by w.id), '[]'::json)
+               from as_budget_sweeps w));
 end $$;
 
 create or replace function as_budget_save_plan(p_token uuid, p_plan json) returns bigint
@@ -1308,10 +1311,57 @@ begin
   perform as_budget_check(p_token);
   if p_kind = 'plan' then delete from as_budget_plans where id = p_id;
   elsif p_kind = 'exec' then delete from as_budget_execs where id = p_id;
+  elsif p_kind = 'sweep' then delete from as_budget_sweeps where id = p_id;
   else raise exception '잘못된 요청입니다.'; end if;
 end $$;
 
 revoke execute on function as_budget_check(uuid) from public, anon, authenticated;
+
+
+-- ===== 남은 예산 털기 =====
+create table if not exists as_budget_sweeps (
+  id          bigint generated always as identity primary key,
+  plan_name   text   not null,               -- 편성된 사업명
+  kind        text   not null check (kind in ('lecture', 'item')),  -- lecture: 강사비, item: 교육운영비
+  label       text   not null,               -- 강좌명 / 세부항목
+  days        int    not null default 0,     -- 수업일수 (강사비)
+  hours       numeric not null default 0,    -- 하루수업시수 (강사비)
+  count       int    not null default 0,     -- 개수 (교육운영비)
+  unit_amount bigint not null default 0,     -- 금액 (교육운영비)
+  amount      bigint not null default 0,     -- 예산(자동계산)
+  created_at  timestamptz not null default now()
+);
+alter table as_budget_sweeps enable row level security;
+
+create or replace function as_budget_sweep_save(p_token uuid, p_row json) returns bigint
+language plpgsql security definer set search_path = public, extensions as $$
+declare v_name text; v_kind text; v_label text; v_days int; v_hours numeric; v_count int; v_unit bigint; v_amt bigint; v_id bigint;
+begin
+  perform as_budget_check(p_token);
+  v_name := btrim(coalesce(p_row->>'plan_name', ''));
+  v_kind := coalesce(p_row->>'kind', '');
+  v_label := btrim(coalesce(p_row->>'label', ''));
+  if not exists (select 1 from as_budget_plans where name = v_name) then raise exception '편성된 사업명을 선택해 주세요.'; end if;
+  if v_label = '' then raise exception '강좌명(세부항목)을 입력해 주세요.'; end if;
+  if v_kind = 'lecture' then
+    v_days  := coalesce(nullif(p_row->>'days', '')::int, 0);
+    v_hours := coalesce(nullif(p_row->>'hours', '')::numeric, 0);
+    if v_days <= 0 or v_hours <= 0 then raise exception '수업일수와 하루수업시수를 입력해 주세요.'; end if;
+    v_amt := round(v_days * v_hours * 35000);   -- 1시간당 35,000원
+    insert into as_budget_sweeps (plan_name, kind, label, days, hours, amount)
+    values (v_name, 'lecture', v_label, v_days, v_hours, v_amt) returning id into v_id;
+  elsif v_kind = 'item' then
+    v_count := coalesce(nullif(p_row->>'count', '')::int, 0);
+    v_unit  := coalesce(nullif(p_row->>'unit_amount', '')::bigint, 0);
+    if v_count <= 0 or v_unit <= 0 then raise exception '개수와 금액을 입력해 주세요.'; end if;
+    v_amt := v_count * v_unit;
+    insert into as_budget_sweeps (plan_name, kind, label, count, unit_amount, amount)
+    values (v_name, 'item', v_label, v_count, v_unit, v_amt) returning id into v_id;
+  else
+    raise exception '잘못된 요청입니다.';
+  end if;
+  return v_id;
+end $$;
 
 -- 웹(API)이 바뀐 함수를 바로 알아보도록 새로 읽게 합니다
 notify pgrst, 'reload schema';
