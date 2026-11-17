@@ -636,7 +636,7 @@ function budgetView() {
         <div style="flex:0 0 auto">${btns(ee)}</div></div></form>` : '<p class="sub">먼저 예산 편성에서 사업을 추가해 주세요.</p>'}
       <div class="scroll" style="margin-top:12px"><table><thead><tr><th>사업명</th><th>세부항목</th><th>날짜</th><th style="text-align:right">집행 예산</th><th style="text-align:right">잔액</th><th>비고</th><th></th></tr></thead><tbody>
       ${execs.slice().sort((x, y) => names.indexOf((plans.find((p) => p.id === x.plan_id) || {}).name) - names.indexOf((plans.find((p) => p.id === y.plan_id) || {}).name)
-          || (x.exec_date || '').localeCompare(y.exec_date || '') || x.id - y.id).map((e) => { const p = plans.find((x) => x.id === e.plan_id) || {};
+          || (x.exec_date || '9999-12-31').localeCompare(y.exec_date || '9999-12-31') || x.id - y.id).map((e) => { const p = plans.find((x) => x.id === e.plan_id) || {};
         const c = BUD_COLORS[Math.max(0, names.indexOf(p.name)) % BUD_COLORS.length];
         return `<tr style="background:${c.bg};box-shadow:inset 5px 0 0 ${c.bar}"><td><b>${esc(p.name || '')}</b></td><td>${esc(e.detail)}</td><td class="nowrap">${e.exec_date || ''}</td><td class="nowrap" style="text-align:right">${money(e.amount)}</td>
         <td class="nowrap" style="text-align:right;${e.balance < 0 ? 'color:#c0392b;font-weight:700' : ''}">${money(e.balance)}</td><td>${esc(e.note)}</td>
