@@ -1194,7 +1194,7 @@ function planHtml(c) {
   return `<section class="sheet plan"><h2>${year} 방과후학교 프로그램별 세부 운영 계획서</h2>
     <table><colgroup><col style="width:15%"><col style="width:30%"><col style="width:13%"><col style="width:8%"><col style="width:12%"><col style="width:22%"></colgroup><tbody>
       <tr><th rowspan="2">프로그램명</th><td rowspan="2">${esc(c.title)}<br><span style="font-size:9pt">(${esc(t.name)})</span></td><th>수업 장소</th><td colspan="3">${esc(c.room)}</td></tr>
-      <tr><th>지도 교사</th><td colspan="3">${esc(c.teacher_name)}</td></tr>
+      <tr><th>지도 교사</th><td colspan="3">${esc(c.teacher_name)} (인)</td></tr>
       <tr><th>대상</th><td>${esc(c.target || c.grades.join(',') + '학년')}</td><th>수준</th><td>${esc(c.level)}</td><th>교재명</th><td>${esc(c.textbook)}</td></tr>
       <tr><th>수업 목표</th><td class="l" colspan="5">${esc(c.goals)}</td></tr>
       <tr><th>운영 계획</th><td class="l" colspan="5">• 회당(${h}시간), 총 ${n}회차, 총 ${Math.round(n * h * 10) / 10}시간
