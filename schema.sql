@@ -1338,6 +1338,7 @@ language plpgsql security definer set search_path = public, extensions as $$
 declare v_name text; v_kind text; v_label text; v_days int; v_hours numeric; v_count int; v_unit bigint; v_amt bigint; v_id bigint;
 begin
   perform as_budget_check(p_token);
+  v_id   := nullif(p_row->>'id', '')::bigint;
   v_name := btrim(coalesce(p_row->>'plan_name', ''));
   v_kind := coalesce(p_row->>'kind', '');
   v_label := btrim(coalesce(p_row->>'label', ''));
@@ -1348,15 +1349,27 @@ begin
     v_hours := coalesce(nullif(p_row->>'hours', '')::numeric, 0);
     if v_days <= 0 or v_hours <= 0 then raise exception '수업일수와 하루수업시수를 입력해 주세요.'; end if;
     v_amt := round(v_days * v_hours * 35000);   -- 1시간당 35,000원
-    insert into as_budget_sweeps (plan_name, kind, label, days, hours, amount)
-    values (v_name, 'lecture', v_label, v_days, v_hours, v_amt) returning id into v_id;
+    if v_id is null then
+      insert into as_budget_sweeps (plan_name, kind, label, days, hours, amount)
+      values (v_name, 'lecture', v_label, v_days, v_hours, v_amt) returning id into v_id;
+    else
+      update as_budget_sweeps set plan_name = v_name, label = v_label, days = v_days, hours = v_hours, amount = v_amt
+       where id = v_id and kind = 'lecture';
+      if not found then raise exception '항목을 찾을 수 없습니다.'; end if;
+    end if;
   elsif v_kind = 'item' then
     v_count := coalesce(nullif(p_row->>'count', '')::int, 0);
     v_unit  := coalesce(nullif(p_row->>'unit_amount', '')::bigint, 0);
     if v_count <= 0 or v_unit <= 0 then raise exception '개수와 금액을 입력해 주세요.'; end if;
     v_amt := v_count * v_unit;
-    insert into as_budget_sweeps (plan_name, kind, label, count, unit_amount, amount)
-    values (v_name, 'item', v_label, v_count, v_unit, v_amt) returning id into v_id;
+    if v_id is null then
+      insert into as_budget_sweeps (plan_name, kind, label, count, unit_amount, amount)
+      values (v_name, 'item', v_label, v_count, v_unit, v_amt) returning id into v_id;
+    else
+      update as_budget_sweeps set plan_name = v_name, label = v_label, count = v_count, unit_amount = v_unit, amount = v_amt
+       where id = v_id and kind = 'item';
+      if not found then raise exception '항목을 찾을 수 없습니다.'; end if;
+    end if;
   else
     raise exception '잘못된 요청입니다.';
   end if;
