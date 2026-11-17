@@ -581,6 +581,11 @@ document.addEventListener('input', (e) => {
   const t = e.target;
   if (t && t.matches && t.matches('input[data-money]')) t.value = fmtMoney(t.value);
 });
+// 사업명마다 다른 배경색으로 집행 내역을 구분합니다
+const BUD_COLORS = [
+  { bg: '#eef4ff', bar: '#4f7ddb' }, { bg: '#fff4e8', bar: '#e8903a' }, { bg: '#eefbf1', bar: '#3fa860' },
+  { bg: '#fdf0f7', bar: '#c74b8f' }, { bg: '#f3f0ff', bar: '#7c5ccc' }, { bg: '#fff9e0', bar: '#c9a200' },
+];
 let budgetOn = false, BUD = null, budTab = 'plan', budEdit = null;
 function loadBud() {
   api('as_budget_get', {}).then((d) => { BUD = d; render(); })
@@ -629,8 +634,10 @@ function budgetView() {
         <div style="flex:2 1 160px"><label>비고</label><input name="note" value="${esc(ee?.note || '')}"></div>
         <div style="flex:0 0 auto">${btns(ee)}</div></div></form>` : '<p class="sub">먼저 예산 편성에서 사업을 추가해 주세요.</p>'}
       <div class="scroll" style="margin-top:12px"><table><thead><tr><th>사업명</th><th>세부항목</th><th>날짜</th><th>집행 예산</th><th>잔액</th><th>비고</th><th></th></tr></thead><tbody>
-      ${execs.map((e) => { const p = plans.find((x) => x.id === e.plan_id) || {};
-        return `<tr><td>${esc(p.name || '')}</td><td>${esc(e.detail)}</td><td class="nowrap">${e.exec_date || ''}</td><td class="nowrap">${money(e.amount)}</td>
+      ${execs.slice().sort((x, y) => names.indexOf((plans.find((p) => p.id === x.plan_id) || {}).name) - names.indexOf((plans.find((p) => p.id === y.plan_id) || {}).name)
+          || (x.exec_date || '').localeCompare(y.exec_date || '') || x.id - y.id).map((e) => { const p = plans.find((x) => x.id === e.plan_id) || {};
+        const c = BUD_COLORS[Math.max(0, names.indexOf(p.name)) % BUD_COLORS.length];
+        return `<tr style="background:${c.bg};box-shadow:inset 5px 0 0 ${c.bar}"><td><b>${esc(p.name || '')}</b></td><td>${esc(e.detail)}</td><td class="nowrap">${e.exec_date || ''}</td><td class="nowrap">${money(e.amount)}</td>
         <td class="nowrap ${e.balance < 0 ? 'tag bad' : ''}">${money(e.balance)}</td><td>${esc(e.note)}</td>
         <td class="nowrap">${actBtns('exec', e.id)}</td></tr>`; }).join('') || '<tr><td colspan="7">집행 내역이 없습니다.</td></tr>'}
       </tbody></table></div>`;
