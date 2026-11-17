@@ -657,7 +657,7 @@ function budgetView() {
       </tbody></table></div>`;
   } else {
     const sel = budSweepName && names.includes(budSweepName) ? budSweepName : (names[0] || '');
-    const kind = sel.includes('강사비') ? 'lecture' : (sel.includes('교육운영비') ? 'item' : null);
+    const kind = sel.includes('강사비') ? 'lecture' : 'item';   // 강사비 사업은 강사 형식, 그 외는 교육운영비 형식
     const alloc = plans.filter((p) => p.name === sel).reduce((a, p) => a + (p.allocated || 0), 0);
     const spent = execs.filter((e) => ((plans.find((p) => p.id === e.plan_id) || {}).name) === sel).reduce((a, e) => a + (e.amount || 0), 0);
     const remain = alloc - spent;
