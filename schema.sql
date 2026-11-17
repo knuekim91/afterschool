@@ -435,7 +435,7 @@ begin
       into me from as_students s where s.id = a.o_uid;
   else
     select json_build_object('role','teacher','id',t.id,'name',t.name,'must_change',t.must_change,
-                             'is_admin',(t.is_admin or t.is_manager),'is_super',t.is_admin,'is_manager',t.is_manager,
+                             'is_admin',(t.is_admin or t.is_manager),'is_super',t.is_admin,'is_manager',t.is_manager,'budget_mgr',t.budget_mgr,
                              'hr_grade',t.hr_grade,'hr_class',t.hr_class)
       into me from as_teachers t where t.id = a.o_uid;
   end if;
@@ -1193,6 +1193,122 @@ revoke execute on function as_do_makeup(bigint, date)            from public, an
 revoke execute on function as_log_access(text, bigint)           from public, anon, authenticated;
 revoke execute on function as_audit_add(text, bigint, text, bigint, bigint, text) from public, anon, authenticated;
 revoke execute on function as_promote(bigint)                    from public, anon, authenticated;
+
+
+-- ===== 예산 담당자: 예산 편성 · 예산 집행 =====
+alter table as_teachers add column if not exists budget_mgr boolean not null default false;  -- 예산 담당자 여부
+update as_teachers set budget_mgr = true where name in ('김지언', '김재홍');
+
+create table if not exists as_budget_plans (
+  id         bigint generated always as identity primary key,
+  name       text   not null,              -- 사업명
+  plan_date  date,                         -- 날짜
+  allocated  bigint not null default 0,    -- 내려온 예산(원)
+  note       text   not null default '',   -- 비고
+  created_at timestamptz not null default now()
+);
+create table if not exists as_budget_execs (
+  id         bigint generated always as identity primary key,
+  plan_id    bigint not null references as_budget_plans(id) on delete cascade,
+  detail     text   not null,              -- 세부항목
+  exec_date  date,                         -- 날짜
+  amount     bigint not null default 0,    -- 집행 예산(원)
+  note       text   not null default '',   -- 비고
+  created_at timestamptz not null default now()
+);
+alter table as_budget_plans enable row level security;
+alter table as_budget_execs enable row level security;
+
+create or replace function as_budget_check(p_token uuid) returns void
+language plpgsql security definer set search_path = public, extensions as $$
+declare a record;
+begin
+  select * into a from as_auth(p_token);
+  if not (a.o_role = 'teacher' and exists (select 1 from as_teachers t
+            where t.id = a.o_uid and (t.budget_mgr or t.is_admin))) then
+    raise exception '예산 담당자만 사용할 수 있습니다.';
+  end if;
+end $$;
+
+create or replace function as_budget_get(p_token uuid) returns json
+language plpgsql security definer set search_path = public, extensions as $$
+begin
+  perform as_budget_check(p_token);
+  return json_build_object(
+    'plans', (select coalesce(json_agg(json_build_object('id', p.id, 'name', p.name, 'plan_date', p.plan_date,
+                                'allocated', p.allocated, 'note', p.note) order by p.plan_date nulls last, p.id), '[]'::json)
+              from as_budget_plans p),
+    'execs', (select coalesce(json_agg(x order by x.plan_id, x.exec_date nulls last, x.id), '[]'::json) from (
+                select e.id, e.plan_id, e.detail, e.exec_date, e.amount, e.note,
+                       p.allocated - sum(e.amount) over (partition by e.plan_id order by e.exec_date nulls last, e.id
+                                                         rows between unbounded preceding and current row) as balance
+                from as_budget_execs e join as_budget_plans p on p.id = e.plan_id) x));
+end $$;
+
+create or replace function as_budget_save_plan(p_token uuid, p_plan json) returns bigint
+language plpgsql security definer set search_path = public, extensions as $$
+declare v_id bigint; v_name text; v_alloc bigint;
+begin
+  perform as_budget_check(p_token);
+  v_id    := nullif(p_plan->>'id', '')::bigint;
+  v_name  := btrim(coalesce(p_plan->>'name', ''));
+  v_alloc := coalesce(nullif(p_plan->>'allocated', '')::bigint, 0);
+  if v_name = '' then raise exception '사업명을 입력해 주세요.'; end if;
+  if v_alloc < 0 then raise exception '예산은 0원 이상이어야 합니다.'; end if;
+  if v_id is null then
+    insert into as_budget_plans (name, plan_date, allocated, note)
+    values (v_name, nullif(p_plan->>'plan_date', '')::date, v_alloc, btrim(coalesce(p_plan->>'note', '')))
+    returning id into v_id;
+  else
+    update as_budget_plans set name = v_name, plan_date = nullif(p_plan->>'plan_date', '')::date,
+           allocated = v_alloc, note = btrim(coalesce(p_plan->>'note', ''))
+     where id = v_id;
+    if not found then raise exception '사업을 찾을 수 없습니다.'; end if;
+  end if;
+  return v_id;
+end $$;
+
+create or replace function as_budget_save_exec(p_token uuid, p_exec json) returns bigint
+language plpgsql security definer set search_path = public, extensions as $$
+declare v_id bigint; v_plan bigint; v_detail text; v_amt bigint; v_alloc bigint; v_spent bigint;
+begin
+  perform as_budget_check(p_token);
+  v_id     := nullif(p_exec->>'id', '')::bigint;
+  v_plan   := nullif(p_exec->>'plan_id', '')::bigint;
+  v_detail := btrim(coalesce(p_exec->>'detail', ''));
+  v_amt    := coalesce(nullif(p_exec->>'amount', '')::bigint, 0);
+  select allocated into v_alloc from as_budget_plans where id = v_plan;
+  if v_alloc is null then raise exception '사업명을 선택해 주세요.'; end if;
+  if v_detail = '' then raise exception '세부항목을 입력해 주세요.'; end if;
+  if v_amt <= 0 then raise exception '집행 예산을 입력해 주세요.'; end if;
+  select coalesce(sum(amount), 0) into v_spent from as_budget_execs
+   where plan_id = v_plan and (v_id is null or id <> v_id);
+  if v_spent + v_amt > v_alloc then
+    raise exception '편성된 예산을 초과합니다. (잔액 %원)', v_alloc - v_spent;
+  end if;
+  if v_id is null then
+    insert into as_budget_execs (plan_id, detail, exec_date, amount, note)
+    values (v_plan, v_detail, nullif(p_exec->>'exec_date', '')::date, v_amt, btrim(coalesce(p_exec->>'note', '')))
+    returning id into v_id;
+  else
+    update as_budget_execs set plan_id = v_plan, detail = v_detail, exec_date = nullif(p_exec->>'exec_date', '')::date,
+           amount = v_amt, note = btrim(coalesce(p_exec->>'note', ''))
+     where id = v_id;
+    if not found then raise exception '집행 내역을 찾을 수 없습니다.'; end if;
+  end if;
+  return v_id;
+end $$;
+
+create or replace function as_budget_delete(p_token uuid, p_kind text, p_id bigint) returns void
+language plpgsql security definer set search_path = public, extensions as $$
+begin
+  perform as_budget_check(p_token);
+  if p_kind = 'plan' then delete from as_budget_plans where id = p_id;
+  elsif p_kind = 'exec' then delete from as_budget_execs where id = p_id;
+  else raise exception '잘못된 요청입니다.'; end if;
+end $$;
+
+revoke execute on function as_budget_check(uuid) from public, anon, authenticated;
 
 -- 웹(API)이 바뀐 함수를 바로 알아보도록 새로 읽게 합니다
 notify pgrst, 'reload schema';

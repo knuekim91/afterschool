@@ -466,7 +466,7 @@ function render() {
   if (!sb) { app.innerHTML = setupView(); return; }
   if (!token || !S) { app.innerHTML = intro ? introView() : loginView(); if (intro) startLoop(); return; }
   if (S.me.must_change && forcePw()) { app.innerHTML = headerView() + `<main><div class="card" style="max-width:420px;margin:6vh auto">${pwForm(true)}</div></main>`; return; }
-  if (!S.term) { app.innerHTML = headerView() + `<main>${termsView()}</main>`; return; }
+  if (!S.term) { app.innerHTML = headerView() + `<main>${budgetOn ? budgetView() : termsView()}</main>`; return; }
   app.innerHTML = headerView() + `<main><div class="crumb"><button data-a="terms">← 방과후학교 목록으로</button><span class="disp">${esc(S.term.title)}</span></div>${S.me.role === 'student' ? studentView() : teacherView()}</main>`;
   if (view.detailId && courseById(view.detailId)) openModal(detailView(courseById(view.detailId)));
 }
@@ -574,6 +574,59 @@ function yearOf(t) {
 }
 let yearSel = null;
 try { yearSel = +sessionStorage.getItem('as_year') || null; } catch (e) {}
+let budgetOn = false, BUD = null, budTab = 'plan';
+function loadBud() {
+  api('as_budget_get', {}).then((d) => { BUD = d; render(); })
+    .catch((e) => { BUD = { err: e.message, plans: [], execs: [] }; render(); });
+}
+function budgetView() {
+  if (!BUD) { loadBud(); return '<div class="card"><h2>예산 담당자</h2><p>불러오는 중…</p></div>'; }
+  const plans = BUD.plans || [], execs = BUD.execs || [];
+  const money = (n) => (n || 0).toLocaleString() + '원';
+  const tab = (v, l) => `<button class="${budTab === v ? 'pri' : ''}" data-a="budTab" data-v="${v}">${l}</button>`;
+  const planOpts = plans.map((p) => `<option value="${p.id}">${esc(p.name)}</option>`).join('');
+  let body = '';
+  if (budTab === 'plan') {
+    body = `<form data-f="budPlan"><div class="row">
+        <div style="flex:2 1 200px"><label>사업명 *</label><input name="name" required></div>
+        <div><label>날짜</label><input name="plan_date" type="date"></div>
+        <div><label>내려온 예산 (원) *</label><input name="allocated" type="number" min="0" step="1" required></div>
+        <div style="flex:2 1 200px"><label>비고</label><input name="note"></div>
+        <div style="flex:0 0 auto"><button class="pri">추가하기</button></div></div></form>
+      <div class="scroll"><table><thead><tr><th>사업명</th><th>날짜</th><th>내려온 예산</th><th>비고</th><th></th></tr></thead><tbody>
+      ${plans.map((p) => `<tr><td>${esc(p.name)}</td><td class="nowrap">${p.plan_date || ''}</td><td class="nowrap">${money(p.allocated)}</td><td>${esc(p.note)}</td>
+        <td><button class="danger small" data-a="budDel" data-k="plan" data-id="${p.id}">삭제</button></td></tr>`).join('') || '<tr><td colspan="5">편성된 예산이 없습니다.</td></tr>'}
+      </tbody></table></div>`;
+  } else {
+    const rows = plans.map((p) => {
+      const spent = execs.filter((e) => e.plan_id === p.id).reduce((a, e) => a + (e.amount || 0), 0);
+      const rate = p.allocated > 0 ? ((spent / p.allocated) * 100).toFixed(1) + '%' : '-';
+      return `<tr><td>${esc(p.name)}</td><td class="nowrap">${money(p.allocated)}</td><td class="nowrap">${money(spent)}</td><td class="nowrap"><b>${rate}</b></td></tr>`;
+    }).join('');
+    body = `<h3>사업별 집행 현황</h3>
+      <div class="scroll"><table><thead><tr><th>사업명</th><th>예산 총액</th><th>집행예산 총액</th><th>집행률</th></tr></thead><tbody>
+      ${rows || '<tr><td colspan="4">편성된 사업이 없습니다.</td></tr>'}</tbody></table></div>
+      <h3>집행 내역 추가</h3>
+      ${plans.length ? `<form data-f="budExec"><div class="row">
+        <div style="flex:2 1 180px"><label>사업명 *</label><select name="plan_id" required>${planOpts}</select></div>
+        <div style="flex:2 1 180px"><label>세부항목 *</label><input name="detail" required></div>
+        <div><label>날짜</label><input name="exec_date" type="date"></div>
+        <div><label>집행 예산 (원) *</label><input name="amount" type="number" min="1" step="1" required></div>
+        <div style="flex:2 1 160px"><label>비고</label><input name="note"></div>
+        <div style="flex:0 0 auto"><button class="pri">추가하기</button></div></div></form>` : '<p class="sub">먼저 예산 편성에서 사업을 추가해 주세요.</p>'}
+      <div class="scroll" style="margin-top:12px"><table><thead><tr><th>사업명</th><th>세부항목</th><th>날짜</th><th>집행 예산</th><th>잔액</th><th>비고</th><th></th></tr></thead><tbody>
+      ${execs.map((e) => { const p = plans.find((x) => x.id === e.plan_id) || {};
+        return `<tr><td>${esc(p.name || '')}</td><td>${esc(e.detail)}</td><td class="nowrap">${e.exec_date || ''}</td><td class="nowrap">${money(e.amount)}</td>
+        <td class="nowrap ${e.balance < 0 ? 'tag bad' : ''}">${money(e.balance)}</td><td>${esc(e.note)}</td>
+        <td><button class="danger small" data-a="budDel" data-k="exec" data-id="${e.id}">삭제</button></td></tr>`; }).join('') || '<tr><td colspan="7">집행 내역이 없습니다.</td></tr>'}
+      </tbody></table></div>`;
+  }
+  return `<div class="crumb"><button data-a="budgetBack">← 방과후학교 목록으로</button><span class="disp">예산 담당자</span></div>
+    <div class="card"><div class="row" style="justify-content:space-between"><h2 class="disp">예산 담당자</h2><button class="small" data-a="budgetBack">목록으로</button></div>
+      ${BUD.err ? `<p class="tag bad">${esc(BUD.err)}</p>` : ''}
+      <div class="row" style="gap:8px;margin-bottom:12px">${tab('plan', '예산 편성')}${tab('exec', '예산 집행')}</div>
+      ${body}</div>`;
+}
 function termsView() {
   const me = S.me, adm = isAdmin();
   const years = [...new Set(S.terms.map(yearOf))].sort((a, b) => a - b);
@@ -585,7 +638,7 @@ function termsView() {
   const period = (t) => (t.start_date && t.end_date ? `${t.start_date} ~ ${t.end_date}` : '운영 기간 미정');
   return `<div class="hero"><h2 class="disp">${esc(me.name)}${me.role === 'teacher' ? ' 선생님' : ' 학생'}, 환영합니다!</h2></div>
     <div class="yearwrap"><nav class="years" aria-label="학년도 선택">${years.map((y) => `<button data-a="year" data-v="${y}" class="${y === yearSel ? 'on' : ''}"><span class="disp">${y}</span><small>학년도 · ${S.terms.filter((t) => yearOf(t) === y).length}개</small></button>`).join('')}</nav>
-    <div class="terms">${shown.map((t) => `<button class="term" data-a="term" data-id="${t.id}">
+    <div class="terms">${(me.budget_mgr || me.is_super) ? `<button class="term" data-a="budOpen"><span class="tt disp">예산 담당자</span><span class="sub">예산 편성 · 예산 집행 · 사업별 집행률</span><br><span class="go2">들어가기 →</span></button>` : ''}${shown.map((t) => `<button class="term" data-a="term" data-id="${t.id}">
         <span class="tt disp">${esc(t.title)}</span><span class="sub">${period(t)}</span><br>
         ${t.enroll_open ? '<span class="tag ok">수강신청 진행 중</span>' : '<span class="tag">수강신청 닫힘</span>'}
         <span class="go2">들어가기 →</span></button>`).join('') || '<div class="card">아직 만들어진 방과후학교가 없습니다.</div>'}</div></div>
@@ -1449,6 +1502,11 @@ const A = {
   term: (el) => run(async () => { try { history.pushState({ term: +el.dataset.id }, ''); } catch (e) {} setTerm(+el.dataset.id); tab = 'my'; view = { cls: '', listFilter: '', detailId: null, addCls: '', mark: '◯', dateSel: '' }; await refresh(); window.scrollTo(0, 0); }),
   terms: () => run(async () => { if (!S || !S.term) return; setTerm(null); closeModal(); await refresh(); window.scrollTo(0, 0); }),
   termDel: () => { if (confirm(`'${S.term.title}'을(를) 삭제할까요?\n강좌가 하나도 없을 때만 삭제됩니다.`)) run(async () => { await api('as_delete_term', { p_id: termId }); setTerm(null); await refresh(); }, '삭제되었습니다.'); },
+  budOpen: () => { budgetOn = true; budTab = 'plan'; BUD = null; render(); },
+  budgetBack: () => { budgetOn = false; BUD = null; render(); },
+  budTab: (el) => { budTab = el.dataset.v; render(); },
+  budDel: (el) => { if (!confirm(el.dataset.k === 'plan' ? '이 사업과 그 집행 내역을 모두 삭제할까요?' : '이 집행 내역을 삭제할까요?')) return;
+    run(async () => { await api('as_budget_delete', { p_kind: el.dataset.k, p_id: +el.dataset.id }); BUD = null; render(); }, '삭제되었습니다.'); },
   logout: async () => { try { await api('as_logout'); } catch (e) {} setToken(null); setTerm(null); S = R = null; intro = false; closeModal(); render(); },
   pwOpen: () => openModal(pwForm(false)),
   enroll: (el) => run(async () => { await api('as_enroll', { p_course: +el.dataset.id }); await refresh(); }, '신청되었습니다.'),
@@ -1564,6 +1622,8 @@ const A = {
 };
 
 const F = {
+  budPlan: (fd) => run(async () => { await api('as_budget_save_plan', { p_plan: { name: fd.get('name'), plan_date: fd.get('plan_date') || null, allocated: fd.get('allocated'), note: fd.get('note') || '' } }); BUD = null; render(); }, '예산 편성을 추가했습니다.'),
+  budExec: (fd) => run(async () => { await api('as_budget_save_exec', { p_exec: { plan_id: fd.get('plan_id'), detail: fd.get('detail'), exec_date: fd.get('exec_date') || null, amount: fd.get('amount'), note: fd.get('note') || '' } }); BUD = null; render(); }, '집행 내역을 추가했습니다.'),
   login: (fd) => run(async () => {
     const r = loginRole === 'student'
       ? await rpc('as_login_student', { p_grade: +fd.get('grade'), p_class: +fd.get('class'), p_number: +fd.get('number'), p_name: fd.get('name'), p_pw: fd.get('pw') })
@@ -1661,6 +1721,7 @@ let allowExit = false;
 const armExitGuard = () => { try { history.pushState({ guard: 1 }, ''); } catch (e) {} };
 window.addEventListener('popstate', () => {
   if (allowExit) return;
+  if (token && S && budgetOn) { A.budgetBack(); return; }
   if (token && S && S.term) { A.terms(); return; }
   if (confirm('사이트에서 나가시겠습니까?')) { allowExit = true; history.back(); }
   else armExitGuard();
