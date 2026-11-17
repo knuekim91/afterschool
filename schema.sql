@@ -1240,8 +1240,9 @@ begin
               from as_budget_plans p),
     'execs', (select coalesce(json_agg(x order by x.plan_id, x.exec_date nulls last, x.id), '[]'::json) from (
                 select e.id, e.plan_id, e.detail, e.exec_date, e.amount, e.note,
-                       p.allocated - sum(e.amount) over (partition by e.plan_id order by e.exec_date nulls last, e.id
-                                                         rows between unbounded preceding and current row) as balance
+                       (select sum(p2.allocated) from as_budget_plans p2 where p2.name = p.name)
+                         - sum(e.amount) over (partition by p.name order by e.exec_date nulls last, e.id
+                                               rows between unbounded preceding and current row) as balance
                 from as_budget_execs e join as_budget_plans p on p.id = e.plan_id) x));
 end $$;
 
@@ -1277,12 +1278,14 @@ begin
   v_plan   := nullif(p_exec->>'plan_id', '')::bigint;
   v_detail := btrim(coalesce(p_exec->>'detail', ''));
   v_amt    := coalesce(nullif(p_exec->>'amount', '')::bigint, 0);
-  select allocated into v_alloc from as_budget_plans where id = v_plan;
+  -- 같은 사업명으로 여러 번 편성된 예산은 하나로 합산해서 집행을 확인합니다
+  select sum(p.allocated) into v_alloc from as_budget_plans p
+   where p.name = (select name from as_budget_plans where id = v_plan);
   if v_alloc is null then raise exception '사업명을 선택해 주세요.'; end if;
   if v_detail = '' then raise exception '세부항목을 입력해 주세요.'; end if;
   if v_amt <= 0 then raise exception '집행 예산을 입력해 주세요.'; end if;
-  select coalesce(sum(amount), 0) into v_spent from as_budget_execs
-   where plan_id = v_plan and (v_id is null or id <> v_id);
+  select coalesce(sum(e.amount), 0) into v_spent from as_budget_execs e join as_budget_plans p on p.id = e.plan_id
+   where p.name = (select name from as_budget_plans where id = v_plan) and (v_id is null or e.id <> v_id);
   if v_spent + v_amt > v_alloc then
     raise exception '편성된 예산을 초과합니다. (잔액 %원)', v_alloc - v_spent;
   end if;

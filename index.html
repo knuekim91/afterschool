@@ -588,7 +588,8 @@ function budgetView() {
   const ep = ed.kind === 'plan' ? plans.find((p) => p.id === ed.id) : null;
   const ee = ed.kind === 'exec' ? execs.find((e) => e.id === ed.id) : null;
   const btns = (on) => `<button class="pri">${on ? '저장' : '추가하기'}</button>${on ? ' <button type="button" data-a="budCancel">취소</button>' : ''}`;
-  const planOpts = plans.map((p) => `<option value="${p.id}" ${ee && ee.plan_id === p.id ? 'selected' : ''}>${esc(p.name)}</option>`).join('');
+  const names = [...new Set(plans.map((p) => p.name))];
+  const planOpts = names.map((n) => { const rep = plans.find((p) => p.name === n); return `<option value="${rep.id}" ${ee && (plans.find((p) => p.id === ee.plan_id) || {}).name === n ? 'selected' : ''}>${esc(n)}</option>`; }).join('');
   const actBtns = (k, id) => `<button class="small" data-a="budEdit" data-k="${k}" data-id="${id}">수정</button> <button class="danger small" data-a="budDel" data-k="${k}" data-id="${id}">삭제</button>`;
   let body = '';
   if (budTab === 'plan') {
@@ -603,10 +604,11 @@ function budgetView() {
         <td class="nowrap">${actBtns('plan', p.id)}</td></tr>`).join('') || '<tr><td colspan="5">편성된 예산이 없습니다.</td></tr>'}
       </tbody></table></div>`;
   } else {
-    const rows = plans.map((p) => {
-      const spent = execs.filter((e) => e.plan_id === p.id).reduce((a, e) => a + (e.amount || 0), 0);
-      const rate = p.allocated > 0 ? ((spent / p.allocated) * 100).toFixed(1) + '%' : '-';
-      return `<tr><td>${esc(p.name)}</td><td class="nowrap">${money(p.allocated)}</td><td class="nowrap">${money(spent)}</td><td class="nowrap"><b>${rate}</b></td></tr>`;
+    const rows = names.map((n) => {
+      const alloc = plans.filter((p) => p.name === n).reduce((a, p) => a + (p.allocated || 0), 0);
+      const spent = execs.filter((e) => ((plans.find((p) => p.id === e.plan_id) || {}).name) === n).reduce((a, e) => a + (e.amount || 0), 0);
+      const rate = alloc > 0 ? ((spent / alloc) * 100).toFixed(1) + '%' : '-';
+      return `<tr><td>${esc(n)}</td><td class="nowrap">${money(alloc)}</td><td class="nowrap">${money(spent)}</td><td class="nowrap"><b>${rate}</b></td></tr>`;
     }).join('');
     body = `<h3>사업별 집행 현황</h3>
       <div class="scroll"><table><thead><tr><th>사업명</th><th>예산 총액</th><th>집행예산 총액</th><th>집행률</th></tr></thead><tbody>
