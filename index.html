@@ -591,6 +591,7 @@ document.addEventListener('input', (e) => {
 });
 document.addEventListener('change', (e) => {
   const t = e.target;
+  if (t && t.matches && t.matches('select[name="bud_year"]')) { budYear = +t.value; BUD = null; budEdit = null; budSweepName = null; render(); return; }
   if (t && t.matches && t.matches('select[name="sweep_name"]')) { budSweepName = t.value; budEdit = null; render(); }
 });
 // 사업명마다 다른 배경색으로 집행 내역을 구분합니다
@@ -599,8 +600,12 @@ const BUD_COLORS = [
   { bg: '#fdf0f7', bar: '#c74b8f' }, { bg: '#f3f0ff', bar: '#7c5ccc' }, { bg: '#fff9e0', bar: '#c9a200' },
 ];
 let budgetOn = false, BUD = null, budTab = 'plan', budEdit = null, budSweepName = null;
+// 예산은 학년도(3월 시작)별로 따로 관리합니다
+const budYearNow = () => { const n = new Date(); return n.getMonth() + 1 <= 2 ? n.getFullYear() - 1 : n.getFullYear(); };
+let budYear = null;
+const curBudYear = () => budYear || budYearNow();
 function loadBud() {
-  api('as_budget_get', {}).then((d) => { BUD = d; render(); })
+  api('as_budget_get', { p_year: curBudYear() }).then((d) => { BUD = d; render(); })
     .catch((e) => { BUD = { err: e.message, plans: [], execs: [] }; render(); });
 }
 function budgetView() {
@@ -705,7 +710,10 @@ function budgetView() {
       ${footer}`;
   }
   return `<div class="crumb"><button data-a="budgetBack">← 방과후학교 목록으로</button><span class="disp">예산 담당자</span></div>
-    <div class="card"><div class="row" style="justify-content:space-between"><h2 class="disp">예산 담당자</h2><button class="small" data-a="budgetBack">목록으로</button></div>
+    <div class="card"><div class="row" style="justify-content:space-between;align-items:center"><h2 class="disp">예산 담당자</h2>
+        <div class="row" style="gap:8px;align-items:center"><label style="margin:0">학년도</label>
+          <select name="bud_year" style="width:auto">${[curBudYear() - 1, curBudYear(), curBudYear() + 1, curBudYear() + 2].map((y) => `<option value="${y}" ${y === curBudYear() ? 'selected' : ''}>${y}학년도</option>`).join('')}</select>
+          <button class="small" data-a="budgetBack">목록으로</button></div></div>
       ${BUD.err ? `<p class="tag bad">${esc(BUD.err)}</p>` : ''}
       <div class="row" style="gap:8px;margin-bottom:12px">${tab('plan', '예산 편성')}${tab('exec', '예산 집행')}${tab('sweep', '남은예산털기')}</div>
       ${body}</div>`;
@@ -1707,8 +1715,8 @@ const A = {
 };
 
 const F = {
-  budSweep: (fd) => run(async () => { budSweepName = fd.get('plan_name'); budEdit = null; await api('as_budget_sweep_save', { p_row: { id: fd.get('id') || null, plan_name: fd.get('plan_name'), kind: fd.get('kind'), label: fd.get('label'), days: fd.get('days') || 0, hours: fd.get('hours') || 0, count: fd.get('count') || 0, unit_amount: unMoney(fd.get('unit_amount')) || 0, note: fd.get('note') || '' } }); BUD = null; render(); }, '추가되었습니다.'),
-  budPlan: (fd) => run(async () => { await api('as_budget_save_plan', { p_plan: { id: fd.get('id') || null, name: fd.get('name'), plan_date: fd.get('plan_date') || null, allocated: unMoney(fd.get('allocated')), note: fd.get('note') || '' } }); budEdit = null; BUD = null; render(); }, '저장되었습니다.'),
+  budSweep: (fd) => run(async () => { budSweepName = fd.get('plan_name'); budEdit = null; await api('as_budget_sweep_save', { p_row: { id: fd.get('id') || null, year: curBudYear(), plan_name: fd.get('plan_name'), kind: fd.get('kind'), label: fd.get('label'), days: fd.get('days') || 0, hours: fd.get('hours') || 0, count: fd.get('count') || 0, unit_amount: unMoney(fd.get('unit_amount')) || 0, note: fd.get('note') || '' } }); BUD = null; render(); }, '추가되었습니다.'),
+  budPlan: (fd) => run(async () => { await api('as_budget_save_plan', { p_plan: { id: fd.get('id') || null, year: curBudYear(), name: fd.get('name'), plan_date: fd.get('plan_date') || null, allocated: unMoney(fd.get('allocated')), note: fd.get('note') || '' } }); budEdit = null; BUD = null; render(); }, '저장되었습니다.'),
   budExec: (fd) => run(async () => { await api('as_budget_save_exec', { p_exec: { id: fd.get('id') || null, plan_id: fd.get('plan_id'), detail: fd.get('detail'), exec_date: fd.get('exec_date') || null, amount: unMoney(fd.get('amount')), note: fd.get('note') || '' } }); budEdit = null; BUD = null; render(); }, '저장되었습니다.'),
   login: (fd) => run(async () => {
     const r = loginRole === 'student'

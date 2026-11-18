@@ -1216,6 +1216,7 @@ create table if not exists as_budget_execs (
   note       text   not null default '',   -- 비고
   created_at timestamptz not null default now()
 );
+alter table as_budget_plans add column if not exists year int not null default 2026;  -- 학년도 (해마다 새로 편성)
 alter table as_budget_plans enable row level security;
 alter table as_budget_execs enable row level security;
 
@@ -1230,23 +1231,24 @@ begin
   end if;
 end $$;
 
-create or replace function as_budget_get(p_token uuid) returns json
+drop function if exists as_budget_get(uuid);
+create or replace function as_budget_get(p_token uuid, p_year int default 2026) returns json
 language plpgsql security definer set search_path = public, extensions as $$
 begin
   perform as_budget_check(p_token);
   return json_build_object(
     'plans', (select coalesce(json_agg(json_build_object('id', p.id, 'name', p.name, 'plan_date', p.plan_date,
                                 'allocated', p.allocated, 'note', p.note) order by p.plan_date nulls last, p.id), '[]'::json)
-              from as_budget_plans p),
+              from as_budget_plans p where p.year = p_year),
     'execs', (select coalesce(json_agg(x order by x.plan_id, x.exec_date nulls last, x.id), '[]'::json) from (
                 select e.id, e.plan_id, e.detail, e.exec_date, e.amount, e.note,
-                       (select sum(p2.allocated) from as_budget_plans p2 where p2.name = p.name)
+                       (select sum(p2.allocated) from as_budget_plans p2 where p2.name = p.name and p2.year = p.year)
                          - sum(e.amount) over (partition by p.name order by e.exec_date nulls last, e.id
                                                rows between unbounded preceding and current row) as balance
-                from as_budget_execs e join as_budget_plans p on p.id = e.plan_id) x),
+                from as_budget_execs e join as_budget_plans p on p.id = e.plan_id where p.year = p_year) x),
     'sweeps', (select coalesce(json_agg(json_build_object('id', w.id, 'plan_name', w.plan_name, 'kind', w.kind, 'label', w.label,
                  'days', w.days, 'hours', w.hours, 'count', w.count, 'unit_amount', w.unit_amount, 'amount', w.amount, 'note', w.note) order by w.id), '[]'::json)
-               from as_budget_sweeps w));
+               from as_budget_sweeps w where w.year = p_year));
 end $$;
 
 create or replace function as_budget_save_plan(p_token uuid, p_plan json) returns bigint
@@ -1260,8 +1262,8 @@ begin
   if v_name = '' then raise exception '사업명을 입력해 주세요.'; end if;
   if v_alloc < 0 then raise exception '예산은 0원 이상이어야 합니다.'; end if;
   if v_id is null then
-    insert into as_budget_plans (name, plan_date, allocated, note)
-    values (v_name, nullif(p_plan->>'plan_date', '')::date, v_alloc, btrim(coalesce(p_plan->>'note', '')))
+    insert into as_budget_plans (name, plan_date, allocated, note, year)
+    values (v_name, nullif(p_plan->>'plan_date', '')::date, v_alloc, btrim(coalesce(p_plan->>'note', '')), coalesce(nullif(p_plan->>'year', '')::int, 2026))
     returning id into v_id;
   else
     update as_budget_plans set name = v_name, plan_date = nullif(p_plan->>'plan_date', '')::date,
@@ -1283,12 +1285,12 @@ begin
   v_amt    := coalesce(nullif(p_exec->>'amount', '')::bigint, 0);
   -- 같은 사업명으로 여러 번 편성된 예산은 하나로 합산해서 집행을 확인합니다
   select sum(p.allocated) into v_alloc from as_budget_plans p
-   where p.name = (select name from as_budget_plans where id = v_plan);
+   where p.name = (select name from as_budget_plans where id = v_plan) and p.year = (select year from as_budget_plans where id = v_plan);
   if v_alloc is null then raise exception '사업명을 선택해 주세요.'; end if;
   if v_detail = '' then raise exception '세부항목을 입력해 주세요.'; end if;
   if v_amt <= 0 then raise exception '집행 예산을 입력해 주세요.'; end if;
   select coalesce(sum(e.amount), 0) into v_spent from as_budget_execs e join as_budget_plans p on p.id = e.plan_id
-   where p.name = (select name from as_budget_plans where id = v_plan) and (v_id is null or e.id <> v_id);
+   where p.name = (select name from as_budget_plans where id = v_plan) and p.year = (select year from as_budget_plans where id = v_plan) and (v_id is null or e.id <> v_id);
   if v_spent + v_amt > v_alloc then
     raise exception '편성된 예산을 초과합니다. (잔액 %원)', v_alloc - v_spent;
   end if;
@@ -1332,18 +1334,20 @@ create table if not exists as_budget_sweeps (
   created_at  timestamptz not null default now()
 );
 alter table as_budget_sweeps add column if not exists note text not null default '';  -- 비고
+alter table as_budget_sweeps add column if not exists year int not null default 2026;  -- 학년도
 alter table as_budget_sweeps enable row level security;
 
 create or replace function as_budget_sweep_save(p_token uuid, p_row json) returns bigint
 language plpgsql security definer set search_path = public, extensions as $$
-declare v_name text; v_kind text; v_label text; v_days int; v_hours numeric; v_count int; v_unit bigint; v_amt bigint; v_id bigint;
+declare v_name text; v_kind text; v_label text; v_days int; v_hours numeric; v_count int; v_unit bigint; v_amt bigint; v_id bigint; v_year int;
 begin
   perform as_budget_check(p_token);
   v_id   := nullif(p_row->>'id', '')::bigint;
+  v_year := coalesce(nullif(p_row->>'year', '')::int, 2026);
   v_name := btrim(coalesce(p_row->>'plan_name', ''));
   v_kind := coalesce(p_row->>'kind', '');
   v_label := btrim(coalesce(p_row->>'label', ''));
-  if not exists (select 1 from as_budget_plans where name = v_name) then raise exception '편성된 사업명을 선택해 주세요.'; end if;
+  if not exists (select 1 from as_budget_plans where name = v_name and year = v_year) then raise exception '편성된 사업명을 선택해 주세요.'; end if;
   if v_label = '' then raise exception '강좌명(세부항목)을 입력해 주세요.'; end if;
   if v_kind = 'lecture' then
     v_days  := coalesce(nullif(p_row->>'days', '')::int, 0);
@@ -1351,8 +1355,8 @@ begin
     if v_days <= 0 or v_hours <= 0 then raise exception '수업일수와 하루수업시수를 입력해 주세요.'; end if;
     v_amt := round(v_days * v_hours * 35000);   -- 1시간당 35,000원
     if v_id is null then
-      insert into as_budget_sweeps (plan_name, kind, label, days, hours, amount, note)
-      values (v_name, 'lecture', v_label, v_days, v_hours, v_amt, btrim(coalesce(p_row->>'note', ''))) returning id into v_id;
+      insert into as_budget_sweeps (plan_name, kind, label, days, hours, amount, note, year)
+      values (v_name, 'lecture', v_label, v_days, v_hours, v_amt, btrim(coalesce(p_row->>'note', '')), v_year) returning id into v_id;
     else
       update as_budget_sweeps set plan_name = v_name, label = v_label, days = v_days, hours = v_hours, amount = v_amt,
              note = btrim(coalesce(p_row->>'note', ''))
@@ -1365,8 +1369,8 @@ begin
     if v_count <= 0 or v_unit <= 0 then raise exception '개수와 금액을 입력해 주세요.'; end if;
     v_amt := v_count * v_unit;
     if v_id is null then
-      insert into as_budget_sweeps (plan_name, kind, label, count, unit_amount, amount, note)
-      values (v_name, 'item', v_label, v_count, v_unit, v_amt, btrim(coalesce(p_row->>'note', ''))) returning id into v_id;
+      insert into as_budget_sweeps (plan_name, kind, label, count, unit_amount, amount, note, year)
+      values (v_name, 'item', v_label, v_count, v_unit, v_amt, btrim(coalesce(p_row->>'note', '')), v_year) returning id into v_id;
     else
       update as_budget_sweeps set plan_name = v_name, label = v_label, count = v_count, unit_amount = v_unit, amount = v_amt,
              note = btrim(coalesce(p_row->>'note', ''))
