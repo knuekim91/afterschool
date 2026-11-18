@@ -328,7 +328,14 @@ const DAY = ['', '월', '화', '수', '목', '금', '토', '일'];
 const STATUS = { open: '신청 가능', closed: '신청 마감', cancelled: '폐강' };
 let sb = null;
 let token = null;
+// 이 기기에서만 저장: 마지막 로그인 정보(비밀번호는 저장하지 않음), 자동 로그인 여부와 세션 토큰
+const LS = {
+  get: (k) => { try { return localStorage.getItem(k); } catch (e) { return null; } },
+  set: (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch (e) {} },
+};
+const lastLogin = () => { try { return JSON.parse(LS.get('as_last') || 'null') || {}; } catch (e) { return {}; } };
 try { token = sessionStorage.getItem('as_token'); } catch (e) {}
+if (!token && LS.get('as_auto') === '1') token = LS.get('as_token');   // 자동 로그인
 let termId = null;     // 선택한 방과후학교(운영 단위)
 try { termId = +sessionStorage.getItem('as_term') || null; } catch (e) {}
 let intro = !token;    // 첫 화면(인사말) 표시 여부
@@ -386,6 +393,7 @@ async function run(fn, okMsg) {
 function setToken(t) {
   token = t;
   try { t ? sessionStorage.setItem('as_token', t) : sessionStorage.removeItem('as_token'); } catch (e) {}
+  if (LS.get('as_auto') === '1') LS.set('as_token', t || null);
 }
 function setTerm(id) {
   termId = id || null;
@@ -543,6 +551,7 @@ function startLoop() {
   if (still) addEventListener('resize', () => requestAnimationFrame(tick));
 }
 function loginView() {
+  const last = lastLogin();
   const st = loginRole === 'student';
   return `<div class="stage">${ORBS}<div class="login">
     <div class="mark disp">방</div>
@@ -555,9 +564,11 @@ function loginView() {
           <div><label>학년</label><select name="grade"><option>1</option><option>2</option><option>3</option></select></div>
           <div><label>반</label><input name="class" type="number" min="1" required></div>
           <div><label>번호</label><input name="number" type="number" min="1" required></div></div>` : ''}
-      <label>이름</label><input name="name" required autocomplete="off">
+      <label>이름</label><input name="name" required autocomplete="off" value="${esc(last.name || '')}">
       <label>비밀번호</label><input name="pw" type="password" required>
       <p class="sub">처음 로그인할 때 비밀번호는 <b>2026</b> 입니다.</p>
+      <label class="chk-big" style="display:flex;gap:8px;align-items:center;margin:8px 0"><input type="checkbox" name="auto" ${LS.get('as_auto') === '1' ? 'checked' : ''}> 자동 로그인 (이 기기에서 로그인 유지)</label>
+      <p class="sub">개인 기기에서만 체크하세요. 공용 컴퓨터에서는 체크하지 마세요. 로그인 후 일정 시간이 지나면 다시 로그인해야 합니다.</p>
       <button class="pri">로그인</button>
     </form>
     <button class="back" data-a="intro">← 첫 화면으로</button></div></div>`;
@@ -1600,7 +1611,7 @@ const A = {
   budCancel: () => { budEdit = null; render(); },
   budDel: (el) => { if (!confirm(el.dataset.k === 'plan' ? '이 사업과 그 집행 내역을 모두 삭제할까요?' : (el.dataset.k === 'sweep' ? '이 항목을 삭제할까요?' : '이 집행 내역을 삭제할까요?'))) return;
     run(async () => { await api('as_budget_delete', { p_kind: el.dataset.k, p_id: +el.dataset.id }); BUD = null; render(); }, '삭제되었습니다.'); },
-  logout: async () => { try { await api('as_logout'); } catch (e) {} setToken(null); setTerm(null); S = R = null; intro = false; closeModal(); render(); },
+  logout: async () => { try { await api('as_logout'); } catch (e) {} LS.set('as_auto', null); LS.set('as_token', null); setToken(null); setTerm(null); S = R = null; intro = false; closeModal(); render(); },
   pwOpen: () => openModal(pwForm(false)),
   enroll: (el) => run(async () => { await api('as_enroll', { p_course: +el.dataset.id }); await refresh(); }, '신청되었습니다.'),
   waitOn: (el) => run(async () => { const n = await api('as_wait', { p_course: +el.dataset.id }); await refresh(); toast(`대기 ${n}번째로 등록했습니다. 자리가 나면 자동 신청됩니다.`); }),
@@ -1722,6 +1733,9 @@ const F = {
     const r = loginRole === 'student'
       ? await rpc('as_login_student', { p_grade: +fd.get('grade'), p_class: +fd.get('class'), p_number: +fd.get('number'), p_name: fd.get('name'), p_pw: fd.get('pw') })
       : await rpc('as_login_teacher', { p_name: fd.get('name'), p_pw: fd.get('pw') });
+    LS.set('as_auto', fd.get('auto') === 'on' ? '1' : null);
+    LS.set('as_last', JSON.stringify({ role: loginRole, name: fd.get('name'), grade: fd.get('grade') || '', class: fd.get('class') || '', number: fd.get('number') || '' }));
+    if (fd.get('auto') !== 'on') LS.set('as_token', null);
     setToken(r.token); tab = 'my'; await refresh();
   }),
   pw: (fd) => {
